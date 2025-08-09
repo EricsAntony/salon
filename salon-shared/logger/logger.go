@@ -7,7 +7,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
-	"github.com/your-org/salon-shared/config"
+	"github.com/EricsAntony/salon/salon-shared/config"
 )
 
 // Init configures global zerolog based on the provided config.

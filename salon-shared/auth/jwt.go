@@ -12,7 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog/log"
 
-	"github.com/your-org/salon-shared/config"
+	"github.com/EricsAntony/salon/salon-shared/config"
 )
 
 type JWTManager struct {

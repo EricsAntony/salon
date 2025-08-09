@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/your-org/salon-shared/auth"
-	"github.com/your-org/salon-shared/config"
-	"github.com/your-org/salon-shared/models"
+	"github.com/EricsAntony/salon/salon-shared/auth"
+	"github.com/EricsAntony/salon/salon-shared/config"
+	"github.com/EricsAntony/salon/salon-shared/models"
 )
 
 type fakeUserRepo struct{ u *models.User; deleted string; updated bool }

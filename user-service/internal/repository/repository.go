@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/your-org/salon-shared/models"
+	"github.com/EricsAntony/salon/salon-shared/models"
 )
 
 type UserRepository interface {

@@ -16,9 +16,9 @@ import (
 	"user-service/internal/repository"
 	"user-service/internal/service"
 
-	"github.com/your-org/salon-shared/auth"
-	"github.com/your-org/salon-shared/config"
-	"github.com/your-org/salon-shared/logger"
+	"github.com/EricsAntony/salon/salon-shared/auth"
+	"github.com/EricsAntony/salon/salon-shared/config"
+	"github.com/EricsAntony/salon/salon-shared/logger"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

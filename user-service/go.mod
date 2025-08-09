@@ -11,7 +11,7 @@ require (
 	github.com/rs/zerolog v1.32.0
 	github.com/spf13/viper v1.19.0
 	github.com/subosito/gotenv v1.6.0
-	github.com/your-org/salon-shared v0.0.0
+	github.com/EricsAntony/salon/salon-shared v0.0.0
 )
 
 require (
@@ -43,4 +43,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/your-org/salon-shared => ../salon-shared
+replace github.com/EricsAntony/salon/salon-shared => ../salon-shared

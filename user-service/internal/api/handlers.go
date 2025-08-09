@@ -13,10 +13,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
 	"github.com/rs/zerolog/log"
-	"github.com/your-org/salon-shared/auth"
-	"github.com/your-org/salon-shared/config"
+	"github.com/EricsAntony/salon/salon-shared/auth"
+	"github.com/EricsAntony/salon/salon-shared/config"
 	"user-service/internal/service"
-	"github.com/your-org/salon-shared/utils"
+	"github.com/EricsAntony/salon/salon-shared/utils"
 )
 
 type Handler struct {

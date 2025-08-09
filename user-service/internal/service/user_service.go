@@ -10,9 +10,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-	"github.com/your-org/salon-shared/auth"
-	"github.com/your-org/salon-shared/config"
-	"github.com/your-org/salon-shared/models"
+	"github.com/EricsAntony/salon/salon-shared/auth"
+	"github.com/EricsAntony/salon/salon-shared/config"
+	"github.com/EricsAntony/salon/salon-shared/models"
 	"user-service/internal/repository"
 )
 

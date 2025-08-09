@@ -1,4 +1,4 @@
-module github.com/your-org/salon-shared
+module github.com/EricsAntony/salon/salon-shared
 
 go 1.22.0
 
