@@ -13,11 +13,12 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"user-service/internal/api"
-	"user-service/internal/auth"
-	"user-service/internal/config"
 	"user-service/internal/repository"
 	"user-service/internal/service"
-	"user-service/pkg/logger"
+
+	"github.com/your-org/salon-shared/auth"
+	"github.com/your-org/salon-shared/config"
+	"github.com/your-org/salon-shared/logger"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )

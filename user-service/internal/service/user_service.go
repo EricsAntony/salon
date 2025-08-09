@@ -10,20 +10,20 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
-	"user-service/internal/auth"
-	"user-service/internal/config"
-	"user-service/internal/model"
+	"github.com/your-org/salon-shared/auth"
+	"github.com/your-org/salon-shared/config"
+	"github.com/your-org/salon-shared/models"
 	"user-service/internal/repository"
 )
 
 type UserService interface {
 	RequestOTP(ctx context.Context, phone string) error
-	Register(ctx context.Context, phone, name, gender string, email, location *string, otp string) (*model.User, string, string, error)
+	Register(ctx context.Context, phone, name, gender string, email, location *string, otp string) (*models.User, string, string, error)
 	Authenticate(ctx context.Context, phone, otp string) (string, string, error)
-	GetUser(ctx context.Context, id string) (*model.User, error)
+	GetUser(ctx context.Context, id string) (*models.User, error)
 	Refresh(ctx context.Context, refreshToken string) (string, string, error)
 	Revoke(ctx context.Context, userID string) error
-	UpdateUser(ctx context.Context, userID string, name, gender, email, location *string) (*model.User, error)
+	UpdateUser(ctx context.Context, userID string, name, gender, email, location *string) (*models.User, error)
 	DeleteUser(ctx context.Context, requesterID, targetID string) error
 }
 
@@ -79,7 +79,7 @@ func (s *userService) verifyOTP(ctx context.Context, phone, otp string) error {
 	return nil
 }
 
-func (s *userService) Register(ctx context.Context, phone, name, gender string, email, location *string, otp string) (*model.User, string, string, error) {
+func (s *userService) Register(ctx context.Context, phone, name, gender string, email, location *string, otp string) (*models.User, string, string, error) {
 	phone = normalizePhone(phone)
 	if err := s.verifyOTP(ctx, phone, otp); err != nil {
 		return nil, "", "", err
@@ -93,8 +93,8 @@ func (s *userService) Register(ctx context.Context, phone, name, gender string, 
 	}
 	// Create user
 	uid := uuid.NewString()
-	u := &model.User{ID: uid, PhoneNumber: phone, Name: name, Gender: model.Gender(strings.ToLower(gender)), Email: email, Location: location}
-	if u.Gender != model.GenderMale && u.Gender != model.GenderFemale && u.Gender != model.GenderOther {
+	u := &models.User{ID: uid, PhoneNumber: phone, Name: name, Gender: models.Gender(strings.ToLower(gender)), Email: email, Location: location}
+	if u.Gender != models.GenderMale && u.Gender != models.GenderFemale && u.Gender != models.GenderOther {
 		return nil, "", "", errors.New("invalid gender")
 	}
 	if err := s.users.Create(ctx, u); err != nil {
@@ -129,7 +129,7 @@ func (s *userService) Authenticate(ctx context.Context, phone, otp string) (stri
 	return access, refresh, nil
 }
 
-func (s *userService) GetUser(ctx context.Context, id string) (*model.User, error) {
+func (s *userService) GetUser(ctx context.Context, id string) (*models.User, error) {
 	u, err := s.users.GetByID(ctx, id)
 	if err != nil { return nil, err }
 	if u == nil { return nil, errors.New("not found") }
@@ -158,12 +158,12 @@ func (s *userService) Revoke(ctx context.Context, userID string) error {
 	return s.tokens.RevokeAllForUser(ctx, userID)
 }
 
-func (s *userService) UpdateUser(ctx context.Context, userID string, name, gender, email, location *string) (*model.User, error) {
+func (s *userService) UpdateUser(ctx context.Context, userID string, name, gender, email, location *string) (*models.User, error) {
 	u, err := s.users.GetByID(ctx, userID)
 	if err != nil { return nil, err }
 	if u == nil { return nil, errors.New("not found") }
 	if name != nil { u.Name = strings.TrimSpace(*name) }
-	if gender != nil { u.Gender = model.Gender(strings.ToLower(strings.TrimSpace(*gender))) }
+	if gender != nil { u.Gender = models.Gender(strings.ToLower(strings.TrimSpace(*gender))) }
 	if email != nil { u.Email = email }
 	if location != nil { u.Location = location }
 	if err := s.users.Update(ctx, u); err != nil { return nil, err }

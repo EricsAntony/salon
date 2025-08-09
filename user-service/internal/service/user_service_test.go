@@ -5,25 +5,25 @@ import (
 	"testing"
 	"time"
 
-	"user-service/internal/auth"
-	"user-service/internal/config"
-	"user-service/internal/model"
+	"github.com/your-org/salon-shared/auth"
+	"github.com/your-org/salon-shared/config"
+	"github.com/your-org/salon-shared/models"
 )
 
-type fakeUserRepo struct{ u *model.User; deleted string; updated bool }
+type fakeUserRepo struct{ u *models.User; deleted string; updated bool }
 
-func (f *fakeUserRepo) Create(ctx context.Context, u *model.User) error { f.u = u; return nil }
-func (f *fakeUserRepo) GetByID(ctx context.Context, id string) (*model.User, error) {
+func (f *fakeUserRepo) Create(ctx context.Context, u *models.User) error { f.u = u; return nil }
+func (f *fakeUserRepo) GetByID(ctx context.Context, id string) (*models.User, error) {
 	if f.u != nil && f.u.ID == id { return f.u, nil }
 	return nil, nil
 }
-func (f *fakeUserRepo) GetByPhone(ctx context.Context, phone string) (*model.User, error) { return nil, nil }
-func (f *fakeUserRepo) Update(ctx context.Context, u *model.User) error { f.updated = true; f.u = u; return nil }
+func (f *fakeUserRepo) GetByPhone(ctx context.Context, phone string) (*models.User, error) { return nil, nil }
+func (f *fakeUserRepo) Update(ctx context.Context, u *models.User) error { f.updated = true; f.u = u; return nil }
 func (f *fakeUserRepo) Delete(ctx context.Context, id string) error { f.deleted = id; return nil }
 
 type fakeOTPRepo struct{}
 func (f *fakeOTPRepo) Create(ctx context.Context, phone, codeHash string, expiresAt time.Time) error { return nil }
-func (f *fakeOTPRepo) GetLatest(ctx context.Context, phone string) (*model.OTP, error) { return nil, nil }
+func (f *fakeOTPRepo) GetLatest(ctx context.Context, phone string) (*models.OTP, error) { return nil, nil }
 func (f *fakeOTPRepo) IncrementAttempts(ctx context.Context, id int64) error { return nil }
 
 type fakeTokenRepo struct{ valid bool; revokedAll bool; revokedExact bool; saved bool }
@@ -39,7 +39,7 @@ func makeServiceForTest() (*userService, *fakeUserRepo, *fakeTokenRepo) {
 	cfg.JWT.AccessTTLMinutes = 15
 	cfg.JWT.RefreshTTLDays = 7
 	jwt := auth.NewJWTManager(cfg)
-	ur := &fakeUserRepo{u: &model.User{ID: "uid-1", Name: "Alice"}}
+	ur := &fakeUserRepo{u: &models.User{ID: "uid-1", Name: "Alice"}}
 	tr := &fakeTokenRepo{valid: true}
 	or := &fakeOTPRepo{}
 	s := &userService{users: ur, tokens: tr, otps: or, jwt: jwt, cfg: cfg}

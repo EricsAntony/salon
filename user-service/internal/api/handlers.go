@@ -13,10 +13,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
 	"github.com/rs/zerolog/log"
-	"user-service/internal/auth"
-	"user-service/internal/config"
+	"github.com/your-org/salon-shared/auth"
+	"github.com/your-org/salon-shared/config"
 	"user-service/internal/service"
-	"user-service/pkg/utils"
+	"github.com/your-org/salon-shared/utils"
 )
 
 type Handler struct {
@@ -40,7 +40,8 @@ func (h *Handler) RegisterRoutes(r *chi.Mux) {
 	r.Post("/auth/refresh", h.refresh)
 
 	r.Group(func(r chi.Router) {
-		r.Use(h.AuthMiddleware)
+		// Use shared JWT middleware for protected routes
+		r.Use(h.jwt.Middleware())
 		r.Get("/user/{id}", h.getUser)
 		r.Post("/auth/revoke", h.revoke)
 		r.Put("/users/{id}", h.updateUser)
@@ -159,7 +160,7 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) revoke(w http.ResponseWriter, r *http.Request) {
-	uid, _ := r.Context().Value(ctxUserID).(string)
+	uid, _ := r.Context().Value(auth.CtxUserID).(string)
 	if strings.TrimSpace(uid) == "" {
 		writeErr(w, http.StatusUnauthorized, "unauthorized")
 		return
@@ -182,7 +183,7 @@ type updateReq struct {
 
 func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
 	targetID := chi.URLParam(r, "id")
-	uid, _ := r.Context().Value(ctxUserID).(string)
+	uid, _ := r.Context().Value(auth.CtxUserID).(string)
 	if uid == "" || uid != targetID {
 		writeErr(w, http.StatusForbidden, "forbidden")
 		return
@@ -206,7 +207,7 @@ func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) deleteUser(w http.ResponseWriter, r *http.Request) {
 	targetID := chi.URLParam(r, "id")
-	uid, _ := r.Context().Value(ctxUserID).(string)
+	uid, _ := r.Context().Value(auth.CtxUserID).(string)
 	if uid == "" || uid != targetID { writeErr(w, http.StatusForbidden, "forbidden"); return }
 	if err := h.svc.DeleteUser(r.Context(), uid, targetID); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
