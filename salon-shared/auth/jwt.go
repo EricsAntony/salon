@@ -1,14 +1,18 @@
 package auth
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net/http"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/rs/zerolog/log"
-	"user-service/internal/config"
+
+	"github.com/EricsAntony/salon/salon-shared/config"
 )
 
 type JWTManager struct {
@@ -74,6 +78,36 @@ func (m *JWTManager) parse(tok string, secret []byte) (*Claims, error) {
 func HashString(s string) string {
 	h := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(h[:])
+}
+
+// Context key used by the middleware for setting the user id
+// Exposed so services can read it back from the request context
+
+type ctxKey string
+
+const CtxUserID ctxKey = "uid"
+
+// Middleware validates the Authorization: Bearer <token> header and injects the
+// authenticated user id into the request context using CtxUserID.
+func (m *JWTManager) Middleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authz := r.Header.Get("Authorization")
+			parts := strings.SplitN(authz, " ", 2)
+			if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+				http.Error(w, "missing bearer token", http.StatusUnauthorized)
+				return
+			}
+			claims, err := m.ValidateAccessToken(parts[1])
+			if err != nil {
+				log.Warn().Err(err).Msg("invalid access token")
+				http.Error(w, "invalid token", http.StatusUnauthorized)
+				return
+			}
+			ctx := context.WithValue(r.Context(), CtxUserID, claims.UserID)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
 }
 
 // For demo purposes, OTP code will be logged; in production integrate with an SMS provider.

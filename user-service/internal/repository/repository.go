@@ -8,14 +8,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"user-service/internal/model"
+	"github.com/EricsAntony/salon/salon-shared/models"
 )
 
 type UserRepository interface {
-	Create(ctx context.Context, u *model.User) error
-	GetByID(ctx context.Context, id string) (*model.User, error)
-	GetByPhone(ctx context.Context, phone string) (*model.User, error)
-	Update(ctx context.Context, u *model.User) error
+	Create(ctx context.Context, u *models.User) error
+	GetByID(ctx context.Context, id string) (*models.User, error)
+	GetByPhone(ctx context.Context, phone string) (*models.User, error)
+	Update(ctx context.Context, u *models.User) error
 	Delete(ctx context.Context, id string) error
 }
 
@@ -24,7 +24,7 @@ func (r *tokenRepository) RevokeExact(ctx context.Context, userID, tokenHash str
     return err
 }
 
-func (r *userRepository) Update(ctx context.Context, u *model.User) error {
+func (r *userRepository) Update(ctx context.Context, u *models.User) error {
 	ct, err := r.db.Exec(ctx, `UPDATE users SET phone_number = $2, name = $3, gender = $4, email = $5, location = $6, updated_at = NOW() WHERE id = $1`,
 		u.ID, u.PhoneNumber, u.Name, u.Gender, u.Email, u.Location)
 	if err != nil {
@@ -43,7 +43,7 @@ func (r *userRepository) Delete(ctx context.Context, id string) error {
 
 type OTPRepository interface {
 	Create(ctx context.Context, phone, codeHash string, expiresAt time.Time) error
-	GetLatest(ctx context.Context, phone string) (*model.OTP, error)
+	GetLatest(ctx context.Context, phone string) (*models.OTP, error)
 	IncrementAttempts(ctx context.Context, id int64) error
 }
 
@@ -64,15 +64,15 @@ func NewUserRepository(db *pgxpool.Pool) UserRepository   { return &userReposito
 func NewOTPRepository(db *pgxpool.Pool) OTPRepository     { return &otpRepository{db} }
 func NewTokenRepository(db *pgxpool.Pool) TokenRepository { return &tokenRepository{db} }
 
-func (r *userRepository) Create(ctx context.Context, u *model.User) error {
+func (r *userRepository) Create(ctx context.Context, u *models.User) error {
 	_, err := r.db.Exec(ctx, `INSERT INTO users (id, phone_number, name, gender, email, location, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6, NOW(), NOW())`,
 		u.ID, u.PhoneNumber, u.Name, u.Gender, u.Email, u.Location)
 	return err
 }
 
-func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, error) {
+func (r *userRepository) GetByID(ctx context.Context, id string) (*models.User, error) {
 	row := r.db.QueryRow(ctx, `SELECT id, phone_number, name, gender, email, location, created_at, updated_at FROM users WHERE id = $1`, id)
-	var u model.User
+	var u models.User
 	var email, loc *string
 	if err := row.Scan(&u.ID, &u.PhoneNumber, &u.Name, &u.Gender, &email, &loc, &u.CreatedAt, &u.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -85,9 +85,9 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*model.User, e
 	return &u, nil
 }
 
-func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*model.User, error) {
+func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*models.User, error) {
 	row := r.db.QueryRow(ctx, `SELECT id, phone_number, name, gender, email, location, created_at, updated_at FROM users WHERE phone_number = $1`, phone)
-	var u model.User
+	var u models.User
 	var email, loc *string
 	if err := row.Scan(&u.ID, &u.PhoneNumber, &u.Name, &u.Gender, &email, &loc, &u.CreatedAt, &u.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -105,9 +105,9 @@ func (r *otpRepository) Create(ctx context.Context, phone, codeHash string, expi
 	return err
 }
 
-func (r *otpRepository) GetLatest(ctx context.Context, phone string) (*model.OTP, error) {
+func (r *otpRepository) GetLatest(ctx context.Context, phone string) (*models.OTP, error) {
 	row := r.db.QueryRow(ctx, `SELECT id, phone_number, code_hash, expires_at, attempts, created_at FROM otps WHERE phone_number = $1 ORDER BY id DESC LIMIT 1`, phone)
-	var o model.OTP
+	var o models.OTP
 	if err := row.Scan(&o.ID, &o.PhoneNumber, &o.CodeHash, &o.ExpiresAt, &o.Attempts, &o.CreatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
