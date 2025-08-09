@@ -3,6 +3,7 @@ module user-service
 go 1.22.0
 
 require (
+	github.com/EricsAntony/salon/salon-shared v0.0.0
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/go-chi/httprate v0.13.0
 	github.com/golang-jwt/jwt/v5 v5.2.2
@@ -11,7 +12,6 @@ require (
 	github.com/rs/zerolog v1.32.0
 	github.com/spf13/viper v1.19.0
 	github.com/subosito/gotenv v1.6.0
-	github.com/EricsAntony/salon/salon-shared v0.0.0
 )
 
 require (
@@ -42,5 +42,3 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/EricsAntony/salon/salon-shared => ../salon-shared
