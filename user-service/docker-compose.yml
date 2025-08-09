@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: user_service_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: salon_users
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d salon_users"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrate:
+    image: migrate/migrate:v4.17.1
+    container_name: user_service_migrate
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./migrations:/migrations:ro
+    entrypoint: ["/usr/local/bin/migrate"]
+    command: ["-path", "/migrations", "-database", "postgres://user:password@db:5432/salon_users?sslmode=disable", "up"]
+    restart: "no"
+
+  user-service:
+    build: .
+    container_name: user_service_app
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      USER_SERVICE_ENV: docker
+      USER_SERVICE_DB_URL: postgres://user:password@db:5432/salon_users?sslmode=disable
+      USER_SERVICE_JWT_ACCESSSECRET: dev-access-secret-change-me
+      USER_SERVICE_JWT_REFRESHSECRET: dev-refresh-secret-change-me
+      USER_SERVICE_LOG_LEVEL: info
+      USER_SERVICE_LOG_SERVICENAME: user-service
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
+volumes:
+  pgdata:

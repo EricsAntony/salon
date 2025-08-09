@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+  labels:
+    app: user-service
+data:
+  config.yaml: |
+    env: prod
+    server:
+      port: "8080"
+    db:
+      url: "postgres://user:password@postgres:5432/salon_users?sslmode=disable"
+    jwt:
+      accesssecret: ""
+      refreshsecret: ""
+      accessttlminutes: 15
+      refreshttldays: 7
+    otp:
+      expiryminutes: 5
+    ratelimit:
+      otprequestsperminute: 3
+    log:
+      level: "info"
+      servicename: "user-service"
