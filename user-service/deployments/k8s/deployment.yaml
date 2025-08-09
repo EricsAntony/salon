@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  labels:
+    app: user-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: user-service
+          image: your-registry/user-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          env:
+            - name: USER_SERVICE_SERVER_PORT
+              value: "8080"
+            - name: USER_SERVICE_DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: user-service-secrets
+                  key: db_url
+            - name: USER_SERVICE_JWT_ACCESSSECRET
+              valueFrom:
+                secretKeyRef:
+                  name: user-service-secrets
+                  key: jwt_access_secret
+            - name: USER_SERVICE_JWT_REFRESHSECRET
+              valueFrom:
+                secretKeyRef:
+                  name: user-service-secrets
+                  key: jwt_refresh_secret
+            - name: USER_SERVICE_LOG_LEVEL
+              value: "info"
+          volumeMounts:
+            - name: config
+              mountPath: /configs
+      volumes:
+        - name: config
+          configMap:
+            name: user-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+spec:
+  selector:
+    app: user-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
