@@ -3,10 +3,9 @@ module user-service
 go 1.22.0
 
 require (
-	github.com/EricsAntony/salon/salon-shared v0.0.0
+	github.com/EricsAntony/salon/salon-shared v0.1.0
 	github.com/go-chi/chi/v5 v5.0.11
 	github.com/go-chi/httprate v0.13.0
-	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/rs/zerolog v1.32.0
@@ -15,8 +14,10 @@ require (
 )
 
 require (
+	github.com/EricsAntony/salon v0.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.2 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
