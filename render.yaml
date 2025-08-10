@@ -37,7 +37,7 @@ services:
         value: info
       - key: USER_SERVICE_LOG_SERVICENAME
         value: user-service
-    preDeployCommand: /usr/local/bin/migrate -path /migrations -database $DATABASE_URL up
+    preDeployCommand: psql $DATABASE_URL -f migrations/0001_init.up.sql
     dependsOn:
       - name: salon_users
 
