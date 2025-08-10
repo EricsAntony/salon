@@ -5,6 +5,7 @@ services:
     plan: free
     branch: main
     autoDeploy: false # Manual deploys instead of every push
+    dockerfilePath: /user-service/Dockerfile
     envVars:
       - key: PORT
         value: 8080
