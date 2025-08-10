@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1
 FROM golang:1.22 AS builder
 RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.0
+COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
 WORKDIR /app
 COPY user-service/go.mod user-service/go.sum ./
 RUN go mod download
