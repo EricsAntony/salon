@@ -54,9 +54,9 @@ kubectl wait --for=condition=ready pod --all -n observability --timeout=300s
 ### Step 3: Deploy User Service
 ```bash
 # Create dev namespace and deploy user-service
-make namespace-dev
-make secrets-dev
-make deploy-dev
+kubectl create namespace dev
+kubectl apply -f deployments/k8s/local/secrets.yaml -n dev
+kubectl apply -f deployments/k8s/local/deployment.yaml -n dev
 
 # Check user-service status
 kubectl get pods -n dev
