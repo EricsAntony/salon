@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: user-service
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: USER_SERVICE_ENV
+              value: dev
+            - name: USER_SERVICE_LOG_LEVEL
+              value: debug
