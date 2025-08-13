@@ -21,3 +21,9 @@ data:
     log:
       level: "info"
       servicename: "user-service"
+  # Observability environment variables for Prometheus, Grafana, Loki
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "info"
+  JAEGER_ENDPOINT: "http://jaeger.observability.svc.cluster.local:14268/api/traces"
+  OTEL_EXPORTER_JAEGER_ENDPOINT: "http://jaeger.observability.svc.cluster.local:14268/api/traces"
+  OTEL_SERVICE_NAME: "user-service"

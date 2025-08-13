@@ -11,9 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"github.com/EricsAntony/salon/salon-shared/auth"
-	"github.com/EricsAntony/salon/salon-shared/config"
 	"github.com/EricsAntony/salon/salon-shared/models"
+	"user-service/internal/config"
 	"user-service/internal/repository"
+	appErrors "user-service/internal/errors"
 )
 
 type UserService interface {
@@ -25,6 +26,7 @@ type UserService interface {
 	Revoke(ctx context.Context, userID string) error
 	UpdateUser(ctx context.Context, userID string, name, gender, email, location *string) (*models.User, error)
 	DeleteUser(ctx context.Context, requesterID, targetID string) error
+	HealthCheck(ctx context.Context) error
 }
 
 type userService struct {
@@ -62,19 +64,30 @@ func (s *userService) RequestOTP(ctx context.Context, phone string) error {
 }
 
 func (s *userService) verifyOTP(ctx context.Context, phone, otp string) error {
+	// Check rate limiting for failed attempts
+	failedCount, err := s.otps.GetFailedAttemptsCount(ctx, phone, s.cfg.OTP.FailureWindowMinutes)
+	if err != nil {
+		log.Error().Err(err).Str("phone", phone).Msg("failed to check OTP failure count")
+		return appErrors.ErrInternalError
+	}
+	if failedCount >= s.cfg.OTP.MaxFailedAttempts {
+		log.Warn().Str("phone", phone).Int("failed_count", failedCount).Msg("OTP rate limit exceeded")
+		return appErrors.ErrRateLimited
+	}
+
 	rec, err := s.otps.GetLatest(ctx, phone)
 	if err != nil {
-		return err
+		return appErrors.ErrInternalError
 	}
 	if rec == nil {
-		return errors.New("no otp requested")
+		return appErrors.ErrOTPNotRequested
 	}
 	if time.Now().After(rec.ExpiresAt) {
-		return errors.New("otp expired")
+		return appErrors.ErrOTPExpired
 	}
 	if auth.HashString(otp) != rec.CodeHash {
 		_ = s.otps.IncrementAttempts(ctx, rec.ID)
-		return errors.New("invalid otp")
+		return appErrors.ErrInvalidOTP
 	}
 	return nil
 }
@@ -173,6 +186,11 @@ func (s *userService) UpdateUser(ctx context.Context, userID string, name, gende
 func (s *userService) DeleteUser(ctx context.Context, requesterID, targetID string) error {
 	if requesterID != targetID { return errors.New("forbidden") }
 	return s.users.Delete(ctx, targetID)
+}
+
+func (s *userService) HealthCheck(ctx context.Context) error {
+	// Check database connectivity by performing a simple query
+	return s.users.HealthCheck(ctx)
 }
 
 func init() {

@@ -2,21 +2,32 @@ package logger
 
 import (
 	"os"
-	"strings"
 
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"user-service/internal/config"
+	"github.com/EricsAntony/salon/salon-shared/config"
 )
 
 func Init(cfg *config.Config) {
-	lvl, err := zerolog.ParseLevel(strings.ToLower(cfg.Log.Level))
+	level, err := zerolog.ParseLevel(cfg.Log.Level)
 	if err != nil {
-		lvl = zerolog.InfoLevel
+		level = zerolog.InfoLevel
 	}
-	zerolog.SetGlobalLevel(lvl)
-	log.Logger = zerolog.New(os.Stdout).With().
-		Timestamp().
-		Str("service", cfg.Log.ServiceName).
-		Logger()
+	zerolog.SetGlobalLevel(level)
+	
+	// Check if we should use JSON format for Loki integration
+	logFormat := os.Getenv("LOG_FORMAT")
+	if logFormat == "json" {
+		// Use JSON format for structured logging (Loki-friendly)
+		log.Logger = zerolog.New(os.Stdout).With().
+			Timestamp().
+			Str("service", cfg.Log.ServiceName).
+			Logger()
+	} else {
+		// Use console format for development
+		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr}).With().
+			Timestamp().
+			Str("service", cfg.Log.ServiceName).
+			Logger()
+	}
 }

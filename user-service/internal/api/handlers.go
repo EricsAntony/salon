@@ -16,6 +16,7 @@ import (
 	"github.com/EricsAntony/salon/salon-shared/auth"
 	"github.com/EricsAntony/salon/salon-shared/config"
 	"user-service/internal/service"
+	"user-service/internal/errors"
 	"github.com/EricsAntony/salon/salon-shared/utils"
 )
 
@@ -38,6 +39,10 @@ func (h *Handler) RegisterRoutes(r *chi.Mux) {
 	r.Post("/user/register", h.register)
 	r.Post("/user/authenticate", h.authenticate)
 	r.Post("/auth/refresh", h.refresh)
+
+	// Health endpoints (no auth required)
+	r.Get("/health", h.health)
+	r.Get("/ready", h.readiness)
 
 	r.Group(func(r chi.Router) {
 		// Use shared JWT middleware for protected routes
@@ -216,6 +221,32 @@ func (h *Handler) deleteUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status": "ok",
+		"service": "user-service",
+	})
+}
+
+func (h *Handler) readiness(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	
+	// Check database connectivity
+	if err := h.svc.HealthCheck(ctx); err != nil {
+		log.Error().Err(err).Msg("readiness check failed")
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"status": "not ready",
+			"error": "database connectivity failed",
+		})
+		return
+	}
+	
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status": "ready",
+		"service": "user-service",
+	})
+}
+
 func (h *Handler) refreshCookieExpiry() time.Time {
 	days := h.cfg.JWT.RefreshTTLDays
 	if days <= 0 { days = 7 }
@@ -292,6 +323,12 @@ func writeJSON(w http.ResponseWriter, code int, v interface{}) {
 
 func writeErr(w http.ResponseWriter, code int, msg string) {
 	writeJSON(w, code, map[string]string{"error": msg})
+}
+
+func writeAPIError(w http.ResponseWriter, err error) {
+	apiErr := errors.MapToAPIError(err)
+	log.Error().Err(err).Int("status_code", apiErr.Code).Str("error_type", apiErr.Type).Msg("api error")
+	writeJSON(w, apiErr.Code, apiErr)
 }
 
 // RequestLogger adds request_id to logs and basic structured request logs

@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: user-service
+  namespace: dev
   labels:
     app: user-service
 spec:
@@ -13,26 +14,30 @@ spec:
     metadata:
       labels:
         app: user-service
-        # Labels for Promtail log collection
-        logging: "enabled"
+        logging: enabled
       annotations:
-        # Prometheus scraping annotations
         prometheus.io/scrape: "true"
         prometheus.io/port: "8080"
         prometheus.io/path: "/metrics"
     spec:
-      # Init container for automatic database migrations
       initContainers:
+      # Database migration init container
       - name: migrate
         image: user-service:latest
-        command: ["/app/migrate"]
-        args: ["-path", "/app/migrations", "-database", "$(USER_SERVICE_DB_URL)", "up"]
+        imagePullPolicy: Never
+        command: ["/usr/local/bin/migrate"]
+        args: 
+          - "-path"
+          - "/migrations"
+          - "-database"
+          - "$(DATABASE_URL)"
+          - "up"
         env:
-        - name: USER_SERVICE_DB_URL
+        - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
               name: user-service-secrets
-              key: db-url
+              key: DATABASE_URL
         resources:
           requests:
             memory: "64Mi"
@@ -43,6 +48,7 @@ spec:
       containers:
       - name: user-service
         image: user-service:latest
+        imagePullPolicy: Never  # Use locally built image
         ports:
         - containerPort: 8080
           name: http
@@ -51,17 +57,17 @@ spec:
           valueFrom:
             secretKeyRef:
               name: user-service-secrets
-              key: db-url
+              key: DATABASE_URL
         - name: USER_SERVICE_JWT_ACCESSSECRET
           valueFrom:
             secretKeyRef:
               name: user-service-secrets
-              key: jwt-access-secret
+              key: JWT_SECRET
         - name: USER_SERVICE_JWT_REFRESHSECRET
           valueFrom:
             secretKeyRef:
               name: user-service-secrets
-              key: jwt-refresh-secret
+              key: JWT_REFRESH_SECRET
         # Jaeger tracing configuration
         - name: JAEGER_ENDPOINT
           value: "http://jaeger.observability.svc.cluster.local:14268/api/traces"
@@ -74,9 +80,6 @@ spec:
           value: "json"
         - name: LOG_LEVEL
           value: "info"
-        envFrom:
-        - configMapRef:
-            name: user-service-config
         resources:
           requests:
             memory: "128Mi"
@@ -84,7 +87,6 @@ spec:
           limits:
             memory: "256Mi"
             cpu: "500m"
-        # Health checks for better observability
         livenessProbe:
           httpGet:
             path: /health
@@ -101,7 +103,24 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 3
-      volumes:
-        - name: config
-          configMap:
-            name: user-service-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: dev
+  labels:
+    app: user-service
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+    prometheus.io/path: "/metrics"
+spec:
+  selector:
+    app: user-service
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
+  type: ClusterIP

@@ -10,15 +10,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 
 	"user-service/internal/api"
+	"user-service/internal/cleanup"
+	custommiddleware "user-service/internal/middleware"
 	"user-service/internal/repository"
 	"user-service/internal/service"
+	"user-service/internal/tracing"
 
 	"github.com/EricsAntony/salon/salon-shared/auth"
-	"github.com/EricsAntony/salon/salon-shared/config"
 	"github.com/EricsAntony/salon/salon-shared/logger"
+	"user-service/internal/config"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -30,9 +34,19 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to load config")
 	}
 
+	// Convert to shared config for compatibility
+	sharedCfg := cfg.ToSharedConfig()
+
 	// Init logger
-	logger.Init(cfg)
+	logger.Init(sharedCfg)
 	log.Info().Str("service", cfg.Log.ServiceName).Msg("starting service")
+
+	// Initialize tracing (optional - only if JAEGER_ENDPOINT is set)
+	var tracingCleanup func()
+	if jaegerEndpoint := os.Getenv("JAEGER_ENDPOINT"); jaegerEndpoint != "" {
+		tracingCleanup = tracing.InitTracing(cfg.Log.ServiceName, jaegerEndpoint)
+		defer tracingCleanup()
+	}
 
 	// Connect DB
 	pool, err := pgxpool.New(context.Background(), cfg.DB.URL)
@@ -45,15 +59,25 @@ func main() {
 	userRepo := repository.NewUserRepository(pool)
 	otpRepo := repository.NewOTPRepository(pool)
 	tokenRepo := repository.NewTokenRepository(pool)
-	jwtMgr := auth.NewJWTManager(cfg)
+	jwtMgr := auth.NewJWTManager(sharedCfg)
 	userSvc := service.NewUserService(userRepo, otpRepo, tokenRepo, jwtMgr, cfg)
-	h := api.NewHandler(userSvc, jwtMgr, cfg)
+	h := api.NewHandler(userSvc, jwtMgr, sharedCfg)
+
+	// Start OTP cleanup service
+	cleanupSvc := cleanup.NewOTPCleanupService(otpRepo, 1*time.Hour, 24*time.Hour)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go cleanupSvc.Start(ctx)
 
 	// Router
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(api.RequestLogger)
+	r.Use(custommiddleware.MetricsMiddleware) // Add metrics middleware
 	r.Use(middleware.Recoverer)
+
+	// Add Prometheus metrics endpoint
+	r.Handle("/metrics", promhttp.Handler())
 
 	h.RegisterRoutes(r)
 
@@ -76,9 +100,9 @@ func main() {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
 	<-stop
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	if err := srv.Shutdown(ctx); err != nil {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Error().Err(err).Msg("graceful shutdown failed")
 	}
 	log.Info().Msg("server stopped")

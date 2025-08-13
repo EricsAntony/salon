@@ -17,6 +17,7 @@ type UserRepository interface {
 	GetByPhone(ctx context.Context, phone string) (*models.User, error)
 	Update(ctx context.Context, u *models.User) error
 	Delete(ctx context.Context, id string) error
+	HealthCheck(ctx context.Context) error
 }
 
 func (r *tokenRepository) RevokeExact(ctx context.Context, userID, tokenHash string) error {
@@ -45,6 +46,8 @@ type OTPRepository interface {
 	Create(ctx context.Context, phone, codeHash string, expiresAt time.Time) error
 	GetLatest(ctx context.Context, phone string) (*models.OTP, error)
 	IncrementAttempts(ctx context.Context, id int64) error
+	GetFailedAttemptsCount(ctx context.Context, phone string, windowMinutes int) (int, error)
+	DeleteExpired(ctx context.Context, maxAge time.Duration) (int, error)
 }
 
 type TokenRepository interface {
@@ -100,6 +103,11 @@ func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*models.
 	return &u, nil
 }
 
+func (r *userRepository) HealthCheck(ctx context.Context) error {
+	// Simple ping to check database connectivity
+	return r.db.Ping(ctx)
+}
+
 func (r *otpRepository) Create(ctx context.Context, phone, codeHash string, expiresAt time.Time) error {
 	_, err := r.db.Exec(ctx, `INSERT INTO otps (phone_number, code_hash, expires_at, created_at) VALUES ($1,$2,$3,NOW())`, phone, codeHash, expiresAt)
 	return err
@@ -126,6 +134,30 @@ func (r *otpRepository) IncrementAttempts(ctx context.Context, id int64) error {
 		log.Warn().Int64("otp_id", id).Msg("no otp row to increment")
 	}
 	return nil
+}
+
+func (r *otpRepository) GetFailedAttemptsCount(ctx context.Context, phone string, windowMinutes int) (int, error) {
+	row := r.db.QueryRow(ctx, `
+		SELECT COALESCE(SUM(attempts), 0) 
+		FROM otps 
+		WHERE phone_number = $1 
+		AND created_at > NOW() - INTERVAL '%d minutes'
+		AND attempts > 0`, phone, windowMinutes)
+	
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (r *otpRepository) DeleteExpired(ctx context.Context, maxAge time.Duration) (int, error) {
+	cutoff := time.Now().Add(-maxAge)
+	result, err := r.db.Exec(ctx, `DELETE FROM otps WHERE created_at < $1`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return int(result.RowsAffected()), nil
 }
 
 func (r *tokenRepository) Save(ctx context.Context, userID, tokenHash string, expiresAt time.Time) error {
