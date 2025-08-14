@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: salon-stage
+  labels:
+    name: salon-stage

@@ -25,14 +25,14 @@ spec:
       initContainers:
       - name: migrate
         image: user-service:latest
-        command: ["/app/migrate"]
-        args: ["-path", "/app/migrations", "-database", "$(USER_SERVICE_DB_URL)", "up"]
+        command: ["/usr/local/bin/migrate"]
+        args: ["-path", "/migrations", "-database", "$(USER_SERVICE_DB_URL)", "up"]
         env:
         - name: USER_SERVICE_DB_URL
           valueFrom:
             secretKeyRef:
               name: user-service-secrets
-              key: db-url
+              key: db_url
         resources:
           requests:
             memory: "64Mi"
@@ -43,6 +43,7 @@ spec:
       containers:
       - name: user-service
         image: user-service:latest
+        workingDir: /
         ports:
         - containerPort: 8080
           name: http
@@ -51,17 +52,17 @@ spec:
           valueFrom:
             secretKeyRef:
               name: user-service-secrets
-              key: db-url
+              key: db_url
         - name: USER_SERVICE_JWT_ACCESSSECRET
           valueFrom:
             secretKeyRef:
               name: user-service-secrets
-              key: jwt-access-secret
+              key: jwt_access_secret
         - name: USER_SERVICE_JWT_REFRESHSECRET
           valueFrom:
             secretKeyRef:
               name: user-service-secrets
-              key: jwt-refresh-secret
+              key: jwt_refresh_secret
         # Jaeger tracing configuration
         - name: JAEGER_ENDPOINT
           value: "http://jaeger.observability.svc.cluster.local:14268/api/traces"
@@ -74,6 +75,9 @@ spec:
           value: "json"
         - name: LOG_LEVEL
           value: "info"
+        volumeMounts:
+        - name: config
+          mountPath: /configs
         envFrom:
         - configMapRef:
             name: user-service-config

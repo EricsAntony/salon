@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: postgres-config
-  namespace: dev
+  namespace: local
 data:
   POSTGRES_DB: salon_db
   POSTGRES_USER: postgres
@@ -12,7 +12,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: postgres
-  namespace: dev
+  namespace: local
 spec:
   replicas: 1
   selector:
@@ -52,7 +52,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: postgres
-  namespace: dev
+  namespace: local
 spec:
   selector:
     app: postgres

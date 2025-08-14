@@ -3,9 +3,11 @@ kind: Kustomization
 namespace: salon-stage
 resources:
   - ../../base
+  - namespace.yaml
 patchesStrategicMerge:
   - patch-deployment.yaml
   - patch-configmap.yaml
 images:
-  - name: your-registry/user-service
+  - name: user-service
+    newName: your-registry/user-service
     newTag: stage
