@@ -54,12 +54,12 @@ kubectl wait --for=condition=ready pod --all -n observability --timeout=300s
 ### Step 3: Deploy User Service
 ```bash
 # Create dev namespace and deploy user-service
-kubectl create namespace dev
-kubectl apply -f deployments/k8s/local/secrets.yaml -n dev
-kubectl apply -f deployments/k8s/local/deployment.yaml -n dev
+kubectl create namespace local
+kubectl apply -f deployments/k8s/local/secrets.yaml -n local
+kubectl apply -f deployments/k8s/local/deployment.yaml -n local
 
 # Check user-service status
-kubectl get pods -n dev
+kubectl get pods -n local
 ```
 
 ### Step 4: Access UIs via Port Forwarding
@@ -77,7 +77,7 @@ kubectl port-forward -n observability svc/prometheus 9090:9090
 kubectl port-forward -n observability svc/jaeger 16686:16686
 
 # Terminal 4: User Service API
-kubectl port-forward -n dev svc/user-service 8080:8080
+kubectl port-forward -n local svc/user-service 8080:8080
 ```
 
 ## Testing the Stack

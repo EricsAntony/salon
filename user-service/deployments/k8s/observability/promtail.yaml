@@ -20,7 +20,9 @@ data:
         kubernetes_sd_configs:
           - role: pod
         pipeline_stages:
-          - docker: {}
+          - cri: {}
+          - drop:
+              expression: '(/health|/ready|kube-probe)'
         relabel_configs:
           - source_labels:
               - __meta_kubernetes_pod_label_name
@@ -53,18 +55,19 @@ data:
             source_labels:
               - __meta_kubernetes_pod_container_name
             target_label: container
-          - replacement: /var/log/pods/*$1/*.log
+          - replacement: /var/log/pods/*$1/*/*.log
             separator: /
             source_labels:
               - __meta_kubernetes_pod_uid
-              - __meta_kubernetes_pod_container_name
             target_label: __path__
 
       - job_name: kubernetes-pods-app
         kubernetes_sd_configs:
           - role: pod
         pipeline_stages:
-          - docker: {}
+          - cri: {}
+          - drop:
+              expression: '(/health|/ready|kube-probe)'
         relabel_configs:
           - action: drop
             regex: .+
@@ -101,18 +104,19 @@ data:
             source_labels:
               - __meta_kubernetes_pod_container_name
             target_label: container
-          - replacement: /var/log/pods/*$1/*.log
+          - replacement: /var/log/pods/*$1/*/*.log
             separator: /
             source_labels:
               - __meta_kubernetes_pod_uid
-              - __meta_kubernetes_pod_container_name
             target_label: __path__
 
       - job_name: kubernetes-pods-direct-controllers
         kubernetes_sd_configs:
           - role: pod
         pipeline_stages:
-          - docker: {}
+          - cri: {}
+          - drop:
+              expression: '(/health|/ready|kube-probe)'
         relabel_configs:
           - action: drop
             regex: .+
@@ -155,18 +159,19 @@ data:
             source_labels:
               - __meta_kubernetes_pod_container_name
             target_label: container
-          - replacement: /var/log/pods/*$1/*.log
+          - replacement: /var/log/pods/*$1/*/*.log
             separator: /
             source_labels:
               - __meta_kubernetes_pod_uid
-              - __meta_kubernetes_pod_container_name
             target_label: __path__
 
       - job_name: kubernetes-pods-indirect-controller
         kubernetes_sd_configs:
           - role: pod
         pipeline_stages:
-          - docker: {}
+          - cri: {}
+          - drop:
+              expression: '(/health|/ready|kube-probe)'
         relabel_configs:
           - action: drop
             regex: .+
@@ -211,11 +216,10 @@ data:
             source_labels:
               - __meta_kubernetes_pod_container_name
             target_label: container
-          - replacement: /var/log/pods/*$1/*.log
+          - replacement: /var/log/pods/*$1/*/*.log
             separator: /
             source_labels:
               - __meta_kubernetes_pod_uid
-              - __meta_kubernetes_pod_container_name
             target_label: __path__
 
 ---
@@ -274,6 +278,9 @@ spec:
         - name: pods
           mountPath: /var/log/pods
           readOnly: true
+        - name: containers-log
+          mountPath: /var/log/containers
+          readOnly: true
       tolerations:
       - effect: NoSchedule
         key: node-role.kubernetes.io/master
@@ -294,6 +301,9 @@ spec:
       - name: pods
         hostPath:
           path: /var/log/pods
+      - name: containers-log
+        hostPath:
+          path: /var/log/containers
 
 ---
 apiVersion: v1

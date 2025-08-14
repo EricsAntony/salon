@@ -141,7 +141,7 @@ func (r *otpRepository) GetFailedAttemptsCount(ctx context.Context, phone string
 		SELECT COALESCE(SUM(attempts), 0) 
 		FROM otps 
 		WHERE phone_number = $1 
-		AND created_at > NOW() - INTERVAL '%d minutes'
+		AND created_at > NOW() - (INTERVAL '1 minute') * $2
 		AND attempts > 0`, phone, windowMinutes)
 	
 	var count int

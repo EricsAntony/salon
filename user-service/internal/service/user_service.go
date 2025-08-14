@@ -66,6 +66,7 @@ func (s *userService) RequestOTP(ctx context.Context, phone string) error {
 func (s *userService) verifyOTP(ctx context.Context, phone, otp string) error {
 	// Check rate limiting for failed attempts
 	failedCount, err := s.otps.GetFailedAttemptsCount(ctx, phone, s.cfg.OTP.FailureWindowMinutes)
+	log.Info().Int("failure_window_minutes", s.cfg.OTP.FailureWindowMinutes).Msg("OTP failure count")
 	if err != nil {
 		log.Error().Err(err).Str("phone", phone).Msg("failed to check OTP failure count")
 		return appErrors.ErrInternalError
