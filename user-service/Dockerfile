@@ -38,5 +38,5 @@ RUN useradd -m -u 10001 appuser \
 
 USER appuser
 
-ENTRYPOINT ["/usr/local/bin/user-service"]
+ENTRYPOINT ["/bin/sh", "-c", "migrate -path /migrations -database \"$DATABASE_URL\" up && exec /usr/local/bin/user-service"]
     

@@ -44,16 +44,3 @@ databases:
     databaseName: salon_users
     user: user
 
-jobs:
-  - type: cron
-    name: run-migrations
-    env: docker
-    dockerfilePath: /user-service/Dockerfile
-    plan: free
-    schedule: "manual"
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: salon_users
-          property: connectionString
-    startCommand: migrate -path /migrations -database "$DATABASE_URL" up
