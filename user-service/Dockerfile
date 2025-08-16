@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y postgresql-client && rm -rf /var/lib/ap
 COPY --from=builder /app/user-service /usr/local/bin/user-service
 
 # Copy configs and migrations
-COPY configs/ /configs/
+COPY ./user-service/configs/ /configs/
 COPY ./user-service/migrations/ /migrations/
 
 # Copy migrate binary from builder
