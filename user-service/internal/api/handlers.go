@@ -7,7 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"net/mail"
+	
+	"github.com/google/uuid"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -17,7 +18,7 @@ import (
 	"github.com/EricsAntony/salon/salon-shared/config"
 	"user-service/internal/service"
 	"user-service/internal/errors"
-	"github.com/EricsAntony/salon/salon-shared/utils"
+	"user-service/internal/api/interfaces"
 )
 
 type Handler struct {
@@ -54,16 +55,14 @@ func (h *Handler) RegisterRoutes(r *chi.Mux) {
 	})
 }
 
-type reqOTP struct { PhoneNumber string `json:"phone_number"` }
-
 func (h *Handler) requestOTP(w http.ResponseWriter, r *http.Request) {
-	var req reqOTP
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.PhoneNumber) == "" {
+	var req interfaces.ReqOTP
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
-	if !utils.ValidPhone(req.PhoneNumber) {
-		writeErr(w, http.StatusBadRequest, "invalid phone number format")
+	if err := req.ValidateStrict(); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	code, err := h.svc.RequestOTP(r.Context(), req.PhoneNumber)
@@ -74,27 +73,14 @@ func (h *Handler) requestOTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "otp_sent", "code": code})
 }
 
-type registerReq struct {
-	PhoneNumber string  `json:"phone_number"`
-	Name        string  `json:"name"`
-	Gender      string  `json:"gender"`
-	Email       *string `json:"email"`
-	Location    *string `json:"location"`
-	OTP         string  `json:"otp"`
-}
-
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
-	var req registerReq
+	var req interfaces.RegisterReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if strings.TrimSpace(req.PhoneNumber) == "" || strings.TrimSpace(req.Name) == "" || strings.TrimSpace(req.Gender) == "" || strings.TrimSpace(req.OTP) == "" {
-		writeErr(w, http.StatusBadRequest, "missing required fields")
-		return
-	}
-	if !utils.ValidPhone(req.PhoneNumber) {
-		writeErr(w, http.StatusBadRequest, "invalid phone number format")
+	if err := req.ValidateStrict(); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	u, access, refresh, err := h.svc.Register(r.Context(), req.PhoneNumber, req.Name, req.Gender, req.Email, req.Location, req.OTP)
@@ -107,20 +93,14 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, map[string]interface{}{"user": u, "access_token": access})
 }
 
-type authReq struct { PhoneNumber string `json:"phone_number"`; OTP string `json:"otp"` }
-
 func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) {
-	var req authReq
+	var req interfaces.AuthReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if strings.TrimSpace(req.PhoneNumber) == "" || strings.TrimSpace(req.OTP) == "" {
-		writeErr(w, http.StatusBadRequest, "missing phone or otp")
-		return
-	}
-	if !utils.ValidPhone(req.PhoneNumber) {
-		writeErr(w, http.StatusBadRequest, "invalid phone number format")
+	if err := req.ValidateStrict(); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	access, refresh, err := h.svc.Authenticate(r.Context(), req.PhoneNumber, req.OTP)
@@ -135,6 +115,10 @@ func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) getUser(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	if _, err := uuid.Parse(strings.TrimSpace(id)); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
 	u, err := h.svc.GetUser(r.Context(), id)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, err.Error())
@@ -146,10 +130,14 @@ func (h *Handler) getUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 	csrfHdr := r.Header.Get("X-CSRF-Token")
 	csrfC, err := r.Cookie("csrf_token")
-	if err != nil || csrfHdr == "" || csrfHdr != csrfC.Value {
+	if err != nil || strings.TrimSpace(csrfHdr) == "" || strings.TrimSpace(csrfC.Value) == "" {
 		writeErr(w, http.StatusForbidden, "csrf validation failed")
 		return
 	}
+	// Validate CSRF token format (expect 64 hex chars)
+	if len(csrfHdr) != 64 { writeErr(w, http.StatusForbidden, "csrf validation failed"); return }
+	if _, err := hex.DecodeString(csrfHdr); err != nil { writeErr(w, http.StatusForbidden, "csrf validation failed"); return }
+	if csrfHdr != csrfC.Value { writeErr(w, http.StatusForbidden, "csrf validation failed"); return }
 	rc, err := r.Cookie("refresh_token")
 	if err != nil || strings.TrimSpace(rc.Value) == "" {
 		writeErr(w, http.StatusUnauthorized, "missing refresh token")
@@ -180,32 +168,23 @@ func (h *Handler) revoke(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-type updateReq struct {
-	Name     *string `json:"name"`
-	Gender   *string `json:"gender"`
-	Email    *string `json:"email"`
-	Location *string `json:"location"`
-}
-
 func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
 	targetID := chi.URLParam(r, "id")
+	if _, err := uuid.Parse(strings.TrimSpace(targetID)); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
 	uid, _ := r.Context().Value(auth.CtxUserID).(string)
 	if uid == "" || uid != targetID {
 		writeErr(w, http.StatusForbidden, "forbidden")
 		return
 	}
-	var req updateReq
+	var req interfaces.UpdateReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if req.Email != nil {
-		if _, err := mail.ParseAddress(strings.TrimSpace(*req.Email)); err != nil { writeErr(w, http.StatusBadRequest, "invalid email"); return }
-	}
-	if req.Gender != nil {
-		g := strings.ToLower(strings.TrimSpace(*req.Gender))
-		if g != "male" && g != "female" && g != "other" { writeErr(w, http.StatusBadRequest, "invalid gender"); return }
-	}
+	if err := req.ValidateStrict(); err != nil { writeErr(w, http.StatusBadRequest, err.Error()); return }
 	u, err := h.svc.UpdateUser(r.Context(), uid, req.Name, req.Gender, req.Email, req.Location)
 	if err != nil { writeErr(w, http.StatusBadRequest, err.Error()); return }
 	writeJSON(w, http.StatusOK, u)
@@ -213,6 +192,7 @@ func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) deleteUser(w http.ResponseWriter, r *http.Request) {
 	targetID := chi.URLParam(r, "id")
+	if _, err := uuid.Parse(strings.TrimSpace(targetID)); err != nil { writeErr(w, http.StatusBadRequest, "invalid user id"); return }
 	uid, _ := r.Context().Value(auth.CtxUserID).(string)
 	if uid == "" || uid != targetID { writeErr(w, http.StatusForbidden, "forbidden"); return }
 	if err := h.svc.DeleteUser(r.Context(), uid, targetID); err != nil {
