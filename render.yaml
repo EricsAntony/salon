@@ -4,7 +4,7 @@ services:
     env: docker
     plan: free
     branch: main
-    autoDeploy: false # Manual deploys instead of every push
+    autoDeploy: false
     dockerfilePath: /user-service/Dockerfile
     envVars:
       - key: PORT
@@ -37,12 +37,23 @@ services:
         value: info
       - key: USER_SERVICE_LOG_SERVICENAME
         value: user-service
-    postDeployCommand: migrate -path /migrations -database "$DATABASE_URL" up
-    dependsOn:
-      - name: salon_users
 
 databases:
   - name: salon_users
     plan: free
     databaseName: salon_users
     user: user
+
+jobs:
+  - type: cron
+    name: run-migrations
+    env: docker
+    dockerfilePath: /user-service/Dockerfile
+    plan: free
+    schedule: "manual"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: salon_users
+          property: connectionString
+    startCommand: migrate -path /migrations -database "$DATABASE_URL" up
