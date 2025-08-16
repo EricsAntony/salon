@@ -66,11 +66,12 @@ func (h *Handler) requestOTP(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid phone number format")
 		return
 	}
-	if err := h.svc.RequestOTP(r.Context(), req.PhoneNumber); err != nil {
+	code, err := h.svc.RequestOTP(r.Context(), req.PhoneNumber)
+	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"status": "otp_sent"})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "otp_sent", "code": code})
 }
 
 type registerReq struct {

@@ -18,7 +18,7 @@ import (
 )
 
 type UserService interface {
-	RequestOTP(ctx context.Context, phone string) error
+	RequestOTP(ctx context.Context, phone string) (string, error)
 	Register(ctx context.Context, phone, name, gender string, email, location *string, otp string) (*models.User, string, string, error)
 	Authenticate(ctx context.Context, phone, otp string) (string, string, error)
 	GetUser(ctx context.Context, id string) (*models.User, error)
@@ -48,19 +48,19 @@ func normalizePhone(phone string) string {
 	return p
 }
 
-func (s *userService) RequestOTP(ctx context.Context, phone string) error {
+func (s *userService) RequestOTP(ctx context.Context, phone string) (string, error) {
 	phone = normalizePhone(phone)
 	if phone == "" {
-		return errors.New("phone required")
+		return "", errors.New("phone required")
 	}
 	code := fmt.Sprintf("%06d", rand.Intn(1000000))
 	exp := time.Now().Add(time.Duration(s.cfg.OTP.ExpiryMinutes) * time.Minute)
 	hash := auth.HashString(code)
 	if err := s.otps.Create(ctx, phone, hash, exp); err != nil {
-		return err
+		return "", err
 	}
 	auth.SendOTPViaSMS(phone, code)
-	return nil
+	return code, nil
 }
 
 func (s *userService) verifyOTP(ctx context.Context, phone, otp string) error {
