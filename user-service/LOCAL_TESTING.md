@@ -56,7 +56,8 @@ kubectl wait --for=condition=ready pod --all -n observability --timeout=300s
 # Create dev namespace and deploy user-service
 kubectl create namespace local
 kubectl apply -f deployments/k8s/local/secrets.yaml -n local
-kubectl apply -f deployments/k8s/local/deployment.yaml -n local
+kubectl apply -f deployments/k8s/local/deployment-with-migrations.yaml -n local
+kubectl apply -f deployments/k8s/local/postgres.yaml -n local
 
 # Check user-service status
 kubectl get pods -n local
