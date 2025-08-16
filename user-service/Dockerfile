@@ -7,9 +7,10 @@ FROM golang:1.23 AS builder
 RUN go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.0
 
 WORKDIR /app
-COPY go.mod go.sum ./
+COPY ./user-service/go.mod ./
+COPY ./user-service/go.sum ./
 RUN go mod download
-COPY . ./
+COPY ./user-service/ ./
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o user-service ./cmd
 
 # --- Stage 2: Final runtime image ---
@@ -39,4 +40,3 @@ RUN useradd -m -u 10001 appuser \
 USER appuser
 
 ENTRYPOINT ["/bin/sh", "-c", "migrate -path /migrations -database \"$DATABASE_URL\" up && exec /usr/local/bin/user-service"]
-    
