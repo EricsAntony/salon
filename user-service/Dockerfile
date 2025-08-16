@@ -25,7 +25,7 @@ COPY --from=builder /app/user-service /usr/local/bin/user-service
 
 # Copy configs and migrations
 COPY configs/ /configs/
-COPY migrations/ /migrations/
+COPY ./user-service/migrations/ /migrations/
 
 # Copy migrate binary from builder
 COPY --from=builder /go/bin/migrate /usr/local/bin/migrate
