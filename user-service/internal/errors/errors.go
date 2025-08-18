@@ -63,7 +63,7 @@ func MapToAPIError(err error) *APIError {
 	case errors.Is(err, ErrRateLimited):
 		return NewAPIError(http.StatusTooManyRequests, "Rate limit exceeded", "rate_limit")
 	case errors.Is(err, ErrOTPExpired):
-		return NewAPIError(http.StatusUnauthorized, "Invalid or expired OTP", OtpExpired)
+		return NewAPIError(http.StatusUnauthorized, "Your OTP has expired", OtpExpired)
 	case errors.Is(err, ErrUserNotRegistered):
 		return NewAPIError(http.StatusNotFound, "User not found", UserNotRegistered)
 	default:

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"errors"
 
 	"github.com/google/uuid"
 
@@ -107,14 +106,7 @@ func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 	access, refresh, err := h.svc.Authenticate(r.Context(), req.PhoneNumber, req.OTP)
 	if err != nil {
-		if errors.Is(err, appErrors.ErrOTPExpired) {
-			writeAPIError(w, appErrors.ErrOTPExpired)
-			return
-		} else if errors.Is(err, appErrors.ErrUserNotRegistered) {
-			writeAPIError(w, appErrors.ErrUserNotRegistered)
-			return
-		}
-		writeErr(w, http.StatusInternalServerError, err.Error())
+		writeAPIError(w, err)
 		return
 	}
 	h.setRefreshCookie(w, refresh)
@@ -245,10 +237,7 @@ func (h *Handler) readiness(w http.ResponseWriter, r *http.Request) {
 	// Check database connectivity
 	if err := h.svc.HealthCheck(ctx); err != nil {
 		log.Error().Err(err).Msg("readiness check failed")
-		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
-			"status": "not ready",
-			"error":  "database connectivity failed",
-		})
+		writeErr(w, http.StatusServiceUnavailable, "database connectivity failed")
 		return
 	}
 
@@ -337,13 +326,26 @@ func writeJSON(w http.ResponseWriter, code int, v interface{}) {
 }
 
 func writeErr(w http.ResponseWriter, code int, msg string) {
-	writeJSON(w, code, map[string]string{"error": msg})
+	writeJSON(w, code, map[string]interface{}{
+		"success": false,
+		"error": map[string]interface{}{
+			"code":    code,
+			"message": msg,
+		},
+	})
 }
 
 func writeAPIError(w http.ResponseWriter, err error) {
 	apiErr := appErrors.MapToAPIError(err)
 	log.Error().Err(err).Int("status_code", apiErr.Code).Str("error_type", apiErr.Type).Msg("api error")
-	writeJSON(w, apiErr.Code, apiErr)
+	writeJSON(w, apiErr.Code, map[string]interface{}{
+		"success": false,
+		"error": map[string]interface{}{
+			"code":    apiErr.Code,
+			"message": apiErr.Message,
+			"type":    apiErr.Type,
+		},
+	})
 }
 
 // RequestLogger adds request_id to logs and basic structured request logs
