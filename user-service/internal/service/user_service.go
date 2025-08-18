@@ -132,7 +132,7 @@ func (s *userService) Authenticate(ctx context.Context, phone, otp string) (stri
 	}
 	u, err := s.users.GetByPhone(ctx, phone)
 	if err != nil { return "", "", err }
-	if u == nil { return "", "", errors.New("user not found; please register") }
+	if u == nil { return "", "", appErrors.ErrUserNotRegistered }
 	access, _, err := s.jwt.GenerateAccessToken(u.ID)
 	if err != nil { return "", "", err }
 	refresh, rexp, err := s.jwt.GenerateRefreshToken(u.ID)
