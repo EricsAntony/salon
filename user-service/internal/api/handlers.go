@@ -110,7 +110,7 @@ func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, appErrors.ErrOTPExpired) {
 			writeAPIError(w, appErrors.ErrOTPExpired)
 			return
-		} else if errors.Is(err, errors.New("user not found; please register")) {
+		} else if errors.Is(err, appErrors.ErrUserNotRegistered) {
 			writeAPIError(w, appErrors.ErrUserNotRegistered)
 			return
 		}

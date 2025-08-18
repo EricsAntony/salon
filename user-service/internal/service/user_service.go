@@ -8,13 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/rs/zerolog/log"
+	"user-service/internal/config"
+	appErrors "user-service/internal/errors"
+	"user-service/internal/repository"
+
 	"github.com/EricsAntony/salon/salon-shared/auth"
 	"github.com/EricsAntony/salon/salon-shared/models"
-	"user-service/internal/config"
-	"user-service/internal/repository"
-	appErrors "user-service/internal/errors"
+	"github.com/google/uuid"
+	"github.com/rs/zerolog/log"
 )
 
 type UserService interface {
@@ -83,12 +84,12 @@ func (s *userService) verifyOTP(ctx context.Context, phone, otp string) error {
 	if rec == nil {
 		return appErrors.ErrOTPNotRequested
 	}
-	if time.Now().After(rec.ExpiresAt) {
-		return appErrors.ErrOTPExpired
-	}
 	if auth.HashString(otp) != rec.CodeHash {
 		_ = s.otps.IncrementAttempts(ctx, rec.ID)
 		return appErrors.ErrInvalidOTP
+	}
+	if time.Now().After(rec.ExpiresAt) {
+		return appErrors.ErrOTPExpired
 	}
 	return nil
 }
@@ -116,12 +117,20 @@ func (s *userService) Register(ctx context.Context, phone, name, gender string, 
 	}
 	// Tokens
 	access, _, err := s.jwt.GenerateAccessToken(uid)
-	if err != nil { return nil, "", "", err }
+	if err != nil {
+		return nil, "", "", err
+	}
 	refresh, rexp, err := s.jwt.GenerateRefreshToken(uid)
-	if err != nil { return nil, "", "", err }
+	if err != nil {
+		return nil, "", "", err
+	}
 	// Revoke any existing refresh tokens for this user just in case
-	if err := s.tokens.RevokeAllForUser(ctx, uid); err != nil { return nil, "", "", err }
-	if err := s.tokens.Save(ctx, uid, auth.HashString(refresh), rexp); err != nil { return nil, "", "", err }
+	if err := s.tokens.RevokeAllForUser(ctx, uid); err != nil {
+		return nil, "", "", err
+	}
+	if err := s.tokens.Save(ctx, uid, auth.HashString(refresh), rexp); err != nil {
+		return nil, "", "", err
+	}
 	return u, access, refresh, nil
 }
 
@@ -131,40 +140,70 @@ func (s *userService) Authenticate(ctx context.Context, phone, otp string) (stri
 		return "", "", err
 	}
 	u, err := s.users.GetByPhone(ctx, phone)
-	if err != nil { return "", "", err }
-	if u == nil { return "", "", appErrors.ErrUserNotRegistered }
+	if err != nil {
+		return "", "", err
+	}
+	if u == nil {
+		return "", "", appErrors.ErrUserNotRegistered
+	}
 	access, _, err := s.jwt.GenerateAccessToken(u.ID)
-	if err != nil { return "", "", err }
+	if err != nil {
+		return "", "", err
+	}
 	refresh, rexp, err := s.jwt.GenerateRefreshToken(u.ID)
-	if err != nil { return "", "", err }
+	if err != nil {
+		return "", "", err
+	}
 	// Revoke existing refresh tokens for this user upon new authentication
-	if err := s.tokens.RevokeAllForUser(ctx, u.ID); err != nil { return "", "", err }
-	if err := s.tokens.Save(ctx, u.ID, auth.HashString(refresh), rexp); err != nil { return "", "", err }
+	if err := s.tokens.RevokeAllForUser(ctx, u.ID); err != nil {
+		return "", "", err
+	}
+	if err := s.tokens.Save(ctx, u.ID, auth.HashString(refresh), rexp); err != nil {
+		return "", "", err
+	}
 	return access, refresh, nil
 }
 
 func (s *userService) GetUser(ctx context.Context, id string) (*models.User, error) {
 	u, err := s.users.GetByID(ctx, id)
-	if err != nil { return nil, err }
-	if u == nil { return nil, errors.New("not found") }
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.New("not found")
+	}
 	return u, nil
 }
 
 func (s *userService) Refresh(ctx context.Context, refreshToken string) (string, string, error) {
 	claims, err := s.jwt.ValidateRefreshToken(refreshToken)
-	if err != nil { return "", "", err }
+	if err != nil {
+		return "", "", err
+	}
 	uid := claims.UserID
 	// validate against DB
 	valid, err := s.tokens.IsValid(ctx, uid, auth.HashString(refreshToken), time.Now())
-	if err != nil { return "", "", err }
-	if !valid { return "", "", errors.New("invalid or revoked refresh token") }
+	if err != nil {
+		return "", "", err
+	}
+	if !valid {
+		return "", "", errors.New("invalid or revoked refresh token")
+	}
 	// rotate
-	if err := s.tokens.RevokeExact(ctx, uid, auth.HashString(refreshToken)); err != nil { return "", "", err }
+	if err := s.tokens.RevokeExact(ctx, uid, auth.HashString(refreshToken)); err != nil {
+		return "", "", err
+	}
 	access, _, err := s.jwt.GenerateAccessToken(uid)
-	if err != nil { return "", "", err }
+	if err != nil {
+		return "", "", err
+	}
 	newRefresh, rexp, err := s.jwt.GenerateRefreshToken(uid)
-	if err != nil { return "", "", err }
-	if err := s.tokens.Save(ctx, uid, auth.HashString(newRefresh), rexp); err != nil { return "", "", err }
+	if err != nil {
+		return "", "", err
+	}
+	if err := s.tokens.Save(ctx, uid, auth.HashString(newRefresh), rexp); err != nil {
+		return "", "", err
+	}
 	return access, newRefresh, nil
 }
 
@@ -174,18 +213,34 @@ func (s *userService) Revoke(ctx context.Context, userID string) error {
 
 func (s *userService) UpdateUser(ctx context.Context, userID string, name, gender, email, location *string) (*models.User, error) {
 	u, err := s.users.GetByID(ctx, userID)
-	if err != nil { return nil, err }
-	if u == nil { return nil, errors.New("not found") }
-	if name != nil { u.Name = strings.TrimSpace(*name) }
-	if gender != nil { u.Gender = models.Gender(strings.ToLower(strings.TrimSpace(*gender))) }
-	if email != nil { u.Email = email }
-	if location != nil { u.Location = location }
-	if err := s.users.Update(ctx, u); err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
+	if u == nil {
+		return nil, errors.New("not found")
+	}
+	if name != nil {
+		u.Name = strings.TrimSpace(*name)
+	}
+	if gender != nil {
+		u.Gender = models.Gender(strings.ToLower(strings.TrimSpace(*gender)))
+	}
+	if email != nil {
+		u.Email = email
+	}
+	if location != nil {
+		u.Location = location
+	}
+	if err := s.users.Update(ctx, u); err != nil {
+		return nil, err
+	}
 	return u, nil
 }
 
 func (s *userService) DeleteUser(ctx context.Context, requesterID, targetID string) error {
-	if requesterID != targetID { return errors.New("forbidden") }
+	if requesterID != targetID {
+		return errors.New("forbidden")
+	}
 	return s.users.Delete(ctx, targetID)
 }
 
