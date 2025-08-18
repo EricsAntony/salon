@@ -1,30 +1,32 @@
 package api
 
 import (
-	"encoding/json"
-	"encoding/hex"
 	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
-	
+	"errors"
+
 	"github.com/google/uuid"
 
+	"user-service/internal/api/interfaces"
+	appErrors "user-service/internal/errors"
+	"user-service/internal/service"
+
+	"github.com/EricsAntony/salon/salon-shared/auth"
+	"github.com/EricsAntony/salon/salon-shared/config"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/httprate"
 	"github.com/rs/zerolog/log"
-	"github.com/EricsAntony/salon/salon-shared/auth"
-	"github.com/EricsAntony/salon/salon-shared/config"
-	"user-service/internal/service"
-	"user-service/internal/errors"
-	"user-service/internal/api/interfaces"
 )
 
 type Handler struct {
-	svc    service.UserService
-	jwt    *auth.JWTManager
-	cfg    *config.Config
+	svc service.UserService
+	jwt *auth.JWTManager
+	cfg *config.Config
 }
 
 func NewHandler(svc service.UserService, jwt *auth.JWTManager, cfg *config.Config) *Handler {
@@ -105,7 +107,14 @@ func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 	access, refresh, err := h.svc.Authenticate(r.Context(), req.PhoneNumber, req.OTP)
 	if err != nil {
-		writeErr(w, http.StatusUnauthorized, err.Error())
+		if errors.Is(err, appErrors.ErrOTPExpired) {
+			writeAPIError(w, appErrors.ErrOTPExpired)
+			return
+		} else if errors.Is(err, errors.New("user not found; please register")) {
+			writeAPIError(w, appErrors.ErrUserNotRegistered)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	h.setRefreshCookie(w, refresh)
@@ -135,9 +144,18 @@ func (h *Handler) refresh(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Validate CSRF token format (expect 64 hex chars)
-	if len(csrfHdr) != 64 { writeErr(w, http.StatusForbidden, "csrf validation failed"); return }
-	if _, err := hex.DecodeString(csrfHdr); err != nil { writeErr(w, http.StatusForbidden, "csrf validation failed"); return }
-	if csrfHdr != csrfC.Value { writeErr(w, http.StatusForbidden, "csrf validation failed"); return }
+	if len(csrfHdr) != 64 {
+		writeErr(w, http.StatusForbidden, "csrf validation failed")
+		return
+	}
+	if _, err := hex.DecodeString(csrfHdr); err != nil {
+		writeErr(w, http.StatusForbidden, "csrf validation failed")
+		return
+	}
+	if csrfHdr != csrfC.Value {
+		writeErr(w, http.StatusForbidden, "csrf validation failed")
+		return
+	}
 	rc, err := r.Cookie("refresh_token")
 	if err != nil || strings.TrimSpace(rc.Value) == "" {
 		writeErr(w, http.StatusUnauthorized, "missing refresh token")
@@ -184,17 +202,29 @@ func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid body")
 		return
 	}
-	if err := req.ValidateStrict(); err != nil { writeErr(w, http.StatusBadRequest, err.Error()); return }
+	if err := req.ValidateStrict(); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	u, err := h.svc.UpdateUser(r.Context(), uid, req.Name, req.Gender, req.Email, req.Location)
-	if err != nil { writeErr(w, http.StatusBadRequest, err.Error()); return }
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	writeJSON(w, http.StatusOK, u)
 }
 
 func (h *Handler) deleteUser(w http.ResponseWriter, r *http.Request) {
 	targetID := chi.URLParam(r, "id")
-	if _, err := uuid.Parse(strings.TrimSpace(targetID)); err != nil { writeErr(w, http.StatusBadRequest, "invalid user id"); return }
+	if _, err := uuid.Parse(strings.TrimSpace(targetID)); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
 	uid, _ := r.Context().Value(auth.CtxUserID).(string)
-	if uid == "" || uid != targetID { writeErr(w, http.StatusForbidden, "forbidden"); return }
+	if uid == "" || uid != targetID {
+		writeErr(w, http.StatusForbidden, "forbidden")
+		return
+	}
 	if err := h.svc.DeleteUser(r.Context(), uid, targetID); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -204,33 +234,35 @@ func (h *Handler) deleteUser(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
-		"status": "ok",
+		"status":  "ok",
 		"service": "user-service",
 	})
 }
 
 func (h *Handler) readiness(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	// Check database connectivity
 	if err := h.svc.HealthCheck(ctx); err != nil {
 		log.Error().Err(err).Msg("readiness check failed")
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
 			"status": "not ready",
-			"error": "database connectivity failed",
+			"error":  "database connectivity failed",
 		})
 		return
 	}
-	
+
 	writeJSON(w, http.StatusOK, map[string]string{
-		"status": "ready",
+		"status":  "ready",
 		"service": "user-service",
 	})
 }
 
 func (h *Handler) refreshCookieExpiry() time.Time {
 	days := h.cfg.JWT.RefreshTTLDays
-	if days <= 0 { days = 7 }
+	if days <= 0 {
+		days = 7
+	}
 	return time.Now().Add(time.Duration(days) * 24 * time.Hour)
 }
 
@@ -260,7 +292,7 @@ func (h *Handler) clearRefreshCookie(w http.ResponseWriter) {
 		HttpOnly: true,
 		Secure:   h.secureCookies(),
 		SameSite: http.SameSiteStrictMode,
-		Expires:  time.Unix(0,0),
+		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 	}
 	http.SetCookie(w, cookie)
@@ -268,7 +300,9 @@ func (h *Handler) clearRefreshCookie(w http.ResponseWriter) {
 
 func (h *Handler) setCSRFCookie(w http.ResponseWriter) {
 	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil { log.Warn().Err(err).Msg("csrf token gen failed") }
+	if _, err := rand.Read(b); err != nil {
+		log.Warn().Err(err).Msg("csrf token gen failed")
+	}
 	v := hex.EncodeToString(b)
 	cookie := &http.Cookie{
 		Name:     "csrf_token",
@@ -290,7 +324,7 @@ func (h *Handler) clearCSRFCookie(w http.ResponseWriter) {
 		HttpOnly: false,
 		Secure:   h.secureCookies(),
 		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Unix(0,0),
+		Expires:  time.Unix(0, 0),
 		MaxAge:   -1,
 	}
 	http.SetCookie(w, cookie)
@@ -307,7 +341,7 @@ func writeErr(w http.ResponseWriter, code int, msg string) {
 }
 
 func writeAPIError(w http.ResponseWriter, err error) {
-	apiErr := errors.MapToAPIError(err)
+	apiErr := appErrors.MapToAPIError(err)
 	log.Error().Err(err).Int("status_code", apiErr.Code).Str("error_type", apiErr.Type).Msg("api error")
 	writeJSON(w, apiErr.Code, apiErr)
 }
