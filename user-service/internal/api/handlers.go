@@ -213,9 +213,6 @@ func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	up := service.UpdateUserParams{
 		UserID:   uid,
-		Name:     req.Name,
-		Gender:   req.Gender,
-		Email:    req.Email,
 		Location: req.Location,
 		Lat:      req.Lat,
 		Lng:      req.Lng,

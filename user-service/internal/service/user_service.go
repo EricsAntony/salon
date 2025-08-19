@@ -33,9 +33,6 @@ type RegisterParams struct {
 // UpdateUserParams bundles inputs to UpdateUser
 type UpdateUserParams struct {
 	UserID   string
-	Name     *string
-	Gender   *string
-	Email    *string
 	Location *string
 	Lat      *float64
 	Lng      *float64
@@ -244,15 +241,6 @@ func (s *userService) UpdateUser(ctx context.Context, p UpdateUserParams) (*mode
 	}
 	if u == nil {
 		return nil, errors.New("not found")
-	}
-	if p.Name != nil {
-		u.Name = strings.TrimSpace(*p.Name)
-	}
-	if p.Gender != nil {
-		u.Gender = models.Gender(strings.ToLower(strings.TrimSpace(*p.Gender)))
-	}
-	if p.Email != nil {
-		u.Email = p.Email
 	}
 	if p.Location != nil {
 		u.Location = p.Location

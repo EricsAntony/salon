@@ -121,9 +121,6 @@ func (r *AuthReq) ValidateStrict() error {
 // UpdateReq represents the request body for updating a user profile
 // PUT /users/{id}
 type UpdateReq struct {
-	Name     *string `json:"name"`
-	Gender   *string `json:"gender"`
-	Email    *string `json:"email"`
 	Location *string `json:"location"`
 	Lat      *float64 `json:"lat"`
 	Lng      *float64 `json:"lng"`
@@ -131,34 +128,8 @@ type UpdateReq struct {
 
 func (r *UpdateReq) ValidateStrict() error {
 	if r == nil { return errors.New("invalid request") }
-	if r.Name == nil && r.Gender == nil && r.Email == nil && r.Location == nil && r.Lat == nil && r.Lng == nil {
+	if r.Location == nil && r.Lat == nil && r.Lng == nil {
 		return errors.New("no fields to update")
-	}
-	if r.Name != nil {
-		v := strings.TrimSpace(*r.Name)
-		if len(v) < 2 || len(v) > 100 || !nameRe.MatchString(v) {
-			return errors.New("invalid name")
-		}
-		r.Name = &v
-	}
-	if r.Gender != nil {
-		v := strings.ToLower(strings.TrimSpace(*r.Gender))
-		switch v {
-		case "male", "female", "other":
-			// ok
-		default:
-			return errors.New("invalid gender")
-		}
-		r.Gender = &v
-	}
-	if r.Email != nil {
-		v := strings.TrimSpace(*r.Email)
-		if v != "" {
-			if _, err := mail.ParseAddress(v); err != nil {
-				return errors.New("invalid email")
-			}
-		}
-		r.Email = &v
 	}
 	if r.Location != nil {
 		v := strings.TrimSpace(*r.Location)
