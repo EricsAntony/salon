@@ -21,7 +21,7 @@ import (
 type UserService interface {
 	RequestOTP(ctx context.Context, phone string) (string, error)
 	Register(ctx context.Context, phone, name, gender string, email, location *string, otp string) (*models.User, string, string, error)
-	Authenticate(ctx context.Context, phone, otp string) (string, string, error)
+	Authenticate(ctx context.Context, phone, otp string) (string, string, string, error)
 	GetUser(ctx context.Context, id string) (*models.User, error)
 	Refresh(ctx context.Context, refreshToken string) (string, string, error)
 	Revoke(ctx context.Context, userID string) error
@@ -134,34 +134,34 @@ func (s *userService) Register(ctx context.Context, phone, name, gender string, 
 	return u, access, refresh, nil
 }
 
-func (s *userService) Authenticate(ctx context.Context, phone, otp string) (string, string, error) {
+func (s *userService) Authenticate(ctx context.Context, phone, otp string) (string, string, string, error) {
 	phone = normalizePhone(phone)
 	if err := s.verifyOTP(ctx, phone, otp); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	u, err := s.users.GetByPhone(ctx, phone)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if u == nil {
-		return "", "", appErrors.ErrUserNotRegistered
+		return "", "", "", appErrors.ErrUserNotRegistered
 	}
 	access, _, err := s.jwt.GenerateAccessToken(u.ID)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	refresh, rexp, err := s.jwt.GenerateRefreshToken(u.ID)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	// Revoke existing refresh tokens for this user upon new authentication
 	if err := s.tokens.RevokeAllForUser(ctx, u.ID); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	if err := s.tokens.Save(ctx, u.ID, auth.HashString(refresh), rexp); err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	return access, refresh, nil
+	return u.ID, access, refresh, nil
 }
 
 func (s *userService) GetUser(ctx context.Context, id string) (*models.User, error) {

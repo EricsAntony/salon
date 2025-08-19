@@ -91,7 +91,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	}
 	h.setRefreshCookie(w, refresh)
 	h.setCSRFCookie(w)
-	writeJSON(w, http.StatusCreated, map[string]interface{}{"user": u, "access_token": access})
+	writeJSON(w, http.StatusCreated, map[string]interface{}{"user_id": u.ID, "access_token": access})
 }
 
 func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) {
@@ -104,14 +104,14 @@ func (h *Handler) authenticate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	access, refresh, err := h.svc.Authenticate(r.Context(), req.PhoneNumber, req.OTP)
+	userId, access, refresh, err := h.svc.Authenticate(r.Context(), req.PhoneNumber, req.OTP)
 	if err != nil {
 		writeAPIError(w, err)
 		return
 	}
 	h.setRefreshCookie(w, refresh)
 	h.setCSRFCookie(w)
-	writeJSON(w, http.StatusOK, map[string]interface{}{"access_token": access})
+	writeJSON(w, http.StatusOK, map[string]interface{}{"user_id": userId, "access_token": access})
 }
 
 func (h *Handler) getUser(w http.ResponseWriter, r *http.Request) {
