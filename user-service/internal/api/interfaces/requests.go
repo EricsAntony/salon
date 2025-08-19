@@ -37,6 +37,8 @@ type RegisterReq struct {
 	Gender      string  `json:"gender"`
 	Email       *string `json:"email"`
 	Location    *string `json:"location"`
+	Lat         *float64 `json:"lat"`
+	Lng         *float64 `json:"lng"`
 	OTP         string  `json:"otp"`
 }
 
@@ -79,6 +81,13 @@ func (r *RegisterReq) ValidateStrict() error {
 	if r.Location != nil && len(*r.Location) > 255 {
 		return errors.New("location too long")
 	}
+	// Lat/Lng optional but must be within bounds if provided
+	if r.Lat != nil {
+		if *r.Lat < -90 || *r.Lat > 90 { return errors.New("invalid latitude") }
+	}
+	if r.Lng != nil {
+		if *r.Lng < -180 || *r.Lng > 180 { return errors.New("invalid longitude") }
+	}
 	// OTP 6 digits
 	if !otpRe.MatchString(r.OTP) {
 		return errors.New("invalid otp format")
@@ -116,11 +125,13 @@ type UpdateReq struct {
 	Gender   *string `json:"gender"`
 	Email    *string `json:"email"`
 	Location *string `json:"location"`
+	Lat      *float64 `json:"lat"`
+	Lng      *float64 `json:"lng"`
 }
 
 func (r *UpdateReq) ValidateStrict() error {
 	if r == nil { return errors.New("invalid request") }
-	if r.Name == nil && r.Gender == nil && r.Email == nil && r.Location == nil {
+	if r.Name == nil && r.Gender == nil && r.Email == nil && r.Location == nil && r.Lat == nil && r.Lng == nil {
 		return errors.New("no fields to update")
 	}
 	if r.Name != nil {
@@ -155,6 +166,12 @@ func (r *UpdateReq) ValidateStrict() error {
 			return errors.New("location too long")
 		}
 		r.Location = &v
+	}
+	if r.Lat != nil {
+		if *r.Lat < -90 || *r.Lat > 90 { return errors.New("invalid latitude") }
+	}
+	if r.Lng != nil {
+		if *r.Lng < -180 || *r.Lng > 180 { return errors.New("invalid longitude") }
 	}
 	return nil
 }

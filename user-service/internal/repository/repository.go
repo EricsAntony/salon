@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	"github.com/EricsAntony/salon/salon-shared/models"
+	models "user-service/internal/model"
 )
 
 type UserRepository interface {
@@ -21,13 +21,13 @@ type UserRepository interface {
 }
 
 func (r *tokenRepository) RevokeExact(ctx context.Context, userID, tokenHash string) error {
-    _, err := r.db.Exec(ctx, `UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND token_hash = $2 AND revoked = false`, userID, tokenHash)
-    return err
+	_, err := r.db.Exec(ctx, `UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND token_hash = $2 AND revoked = false`, userID, tokenHash)
+	return err
 }
 
 func (r *userRepository) Update(ctx context.Context, u *models.User) error {
-	ct, err := r.db.Exec(ctx, `UPDATE users SET phone_number = $2, name = $3, gender = $4, email = $5, location = $6, updated_at = NOW() WHERE id = $1`,
-		u.ID, u.PhoneNumber, u.Name, u.Gender, u.Email, u.Location)
+	ct, err := r.db.Exec(ctx, `UPDATE users SET phone_number = $2, name = $3, gender = $4, email = $5, location = $6, lat = COALESCE($7, lat), lng = COALESCE($8, lng), updated_at = NOW() WHERE id = $1`,
+		u.ID, u.PhoneNumber, u.Name, u.Gender, u.Email, u.Location, u.Lat, u.Lng)
 	if err != nil {
 		return err
 	}
@@ -68,16 +68,17 @@ func NewOTPRepository(db *pgxpool.Pool) OTPRepository     { return &otpRepositor
 func NewTokenRepository(db *pgxpool.Pool) TokenRepository { return &tokenRepository{db} }
 
 func (r *userRepository) Create(ctx context.Context, u *models.User) error {
-	_, err := r.db.Exec(ctx, `INSERT INTO users (id, phone_number, name, gender, email, location, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6, NOW(), NOW())`,
-		u.ID, u.PhoneNumber, u.Name, u.Gender, u.Email, u.Location)
+	_, err := r.db.Exec(ctx, `INSERT INTO users (id, phone_number, name, gender, email, location, lat, lng, created_at, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NOW(), NOW())`,
+		u.ID, u.PhoneNumber, u.Name, u.Gender, u.Email, u.Location, u.Lat, u.Lng)
 	return err
 }
 
 func (r *userRepository) GetByID(ctx context.Context, id string) (*models.User, error) {
-	row := r.db.QueryRow(ctx, `SELECT id, phone_number, name, gender, email, location, created_at, updated_at FROM users WHERE id = $1`, id)
+	row := r.db.QueryRow(ctx, `SELECT id, phone_number, name, gender, email, location, lat, lng, created_at, updated_at FROM users WHERE id = $1`, id)
 	var u models.User
 	var email, loc *string
-	if err := row.Scan(&u.ID, &u.PhoneNumber, &u.Name, &u.Gender, &email, &loc, &u.CreatedAt, &u.UpdatedAt); err != nil {
+	var lat, lng *float64
+	if err := row.Scan(&u.ID, &u.PhoneNumber, &u.Name, &u.Gender, &email, &loc, &lat, &lng, &u.CreatedAt, &u.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
@@ -85,14 +86,17 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*models.User, 
 	}
 	u.Email = email
 	u.Location = loc
+	u.Lat = lat
+	u.Lng = lng
 	return &u, nil
 }
 
 func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*models.User, error) {
-	row := r.db.QueryRow(ctx, `SELECT id, phone_number, name, gender, email, location, created_at, updated_at FROM users WHERE phone_number = $1`, phone)
+	row := r.db.QueryRow(ctx, `SELECT id, phone_number, name, gender, email, location, lat, lng, created_at, updated_at FROM users WHERE phone_number = $1`, phone)
 	var u models.User
 	var email, loc *string
-	if err := row.Scan(&u.ID, &u.PhoneNumber, &u.Name, &u.Gender, &email, &loc, &u.CreatedAt, &u.UpdatedAt); err != nil {
+	var lat, lng *float64
+	if err := row.Scan(&u.ID, &u.PhoneNumber, &u.Name, &u.Gender, &email, &loc, &lat, &lng, &u.CreatedAt, &u.UpdatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
@@ -100,6 +104,8 @@ func (r *userRepository) GetByPhone(ctx context.Context, phone string) (*models.
 	}
 	u.Email = email
 	u.Location = loc
+	u.Lat = lat
+	u.Lng = lng
 	return &u, nil
 }
 

@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"net/http"
@@ -49,6 +50,8 @@ func (h *Handler) RegisterRoutes(r *chi.Mux) {
 	r.Group(func(r chi.Router) {
 		// Use shared JWT middleware for protected routes
 		r.Use(h.jwt.Middleware())
+		// Enforce CSRF on unsafe methods for protected routes
+		r.Use(RequireCSRF)
 		r.Get("/user/{id}", h.getUser)
 		r.Post("/auth/revoke", h.revoke)
 		r.Put("/users/{id}", h.updateUser)
@@ -84,7 +87,17 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	u, access, refresh, err := h.svc.Register(r.Context(), req.PhoneNumber, req.Name, req.Gender, req.Email, req.Location, req.OTP)
+	params := service.RegisterParams{
+		Phone:    req.PhoneNumber,
+		Name:     req.Name,
+		Gender:   req.Gender,
+		Email:    req.Email,
+		Location: req.Location,
+		Lat:      req.Lat,
+		Lng:      req.Lng,
+		OTP:      req.OTP,
+	}
+	u, access, refresh, err := h.svc.Register(r.Context(), params)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -198,7 +211,16 @@ func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	u, err := h.svc.UpdateUser(r.Context(), uid, req.Name, req.Gender, req.Email, req.Location)
+	up := service.UpdateUserParams{
+		UserID:   uid,
+		Name:     req.Name,
+		Gender:   req.Gender,
+		Email:    req.Email,
+		Location: req.Location,
+		Lat:      req.Lat,
+		Lng:      req.Lng,
+	}
+	u, err := h.svc.UpdateUser(r.Context(), up)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -345,6 +367,36 @@ func writeAPIError(w http.ResponseWriter, err error) {
 			"message": apiErr.Message,
 			"type":    apiErr.Type,
 		},
+	})
+}
+
+// RequireCSRF validates CSRF token for unsafe HTTP methods by comparing
+// the X-CSRF-Token header with the csrf_token cookie.
+func RequireCSRF(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+			csrfHdr := strings.TrimSpace(r.Header.Get("X-CSRF-Token"))
+			csrfC, err := r.Cookie("csrf_token")
+			if err != nil || csrfHdr == "" || strings.TrimSpace(csrfC.Value) == "" {
+				writeErr(w, http.StatusForbidden, "csrf validation failed")
+				return
+			}
+			// Validate format (expect 64 hex chars)
+			if len(csrfHdr) != 64 {
+				writeErr(w, http.StatusForbidden, "csrf validation failed")
+				return
+			}
+			if _, err := hex.DecodeString(csrfHdr); err != nil {
+				writeErr(w, http.StatusForbidden, "csrf validation failed")
+				return
+			}
+			if subtle.ConstantTimeCompare([]byte(csrfHdr), []byte(csrfC.Value)) != 1 {
+				writeErr(w, http.StatusForbidden, "csrf validation failed")
+				return
+			}
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 

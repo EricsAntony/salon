@@ -13,19 +13,42 @@ import (
 	"user-service/internal/repository"
 
 	"github.com/EricsAntony/salon/salon-shared/auth"
-	"github.com/EricsAntony/salon/salon-shared/models"
+	models "user-service/internal/model"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 )
 
+// RegisterParams bundles inputs to Register
+type RegisterParams struct {
+	Phone    string
+	Name     string
+	Gender   string
+	Email    *string
+	Location *string
+	Lat      *float64
+	Lng      *float64
+	OTP      string
+}
+
+// UpdateUserParams bundles inputs to UpdateUser
+type UpdateUserParams struct {
+	UserID   string
+	Name     *string
+	Gender   *string
+	Email    *string
+	Location *string
+	Lat      *float64
+	Lng      *float64
+}
+
 type UserService interface {
 	RequestOTP(ctx context.Context, phone string) (string, error)
-	Register(ctx context.Context, phone, name, gender string, email, location *string, otp string) (*models.User, string, string, error)
+	Register(ctx context.Context, p RegisterParams) (*models.User, string, string, error)
 	Authenticate(ctx context.Context, phone, otp string) (string, string, string, error)
 	GetUser(ctx context.Context, id string) (*models.User, error)
 	Refresh(ctx context.Context, refreshToken string) (string, string, error)
 	Revoke(ctx context.Context, userID string) error
-	UpdateUser(ctx context.Context, userID string, name, gender, email, location *string) (*models.User, error)
+	UpdateUser(ctx context.Context, p UpdateUserParams) (*models.User, error)
 	DeleteUser(ctx context.Context, requesterID, targetID string) error
 	HealthCheck(ctx context.Context) error
 }
@@ -94,9 +117,9 @@ func (s *userService) verifyOTP(ctx context.Context, phone, otp string) error {
 	return nil
 }
 
-func (s *userService) Register(ctx context.Context, phone, name, gender string, email, location *string, otp string) (*models.User, string, string, error) {
-	phone = normalizePhone(phone)
-	if err := s.verifyOTP(ctx, phone, otp); err != nil {
+func (s *userService) Register(ctx context.Context, p RegisterParams) (*models.User, string, string, error) {
+	phone := normalizePhone(p.Phone)
+	if err := s.verifyOTP(ctx, phone, p.OTP); err != nil {
 		return nil, "", "", err
 	}
 	existing, err := s.users.GetByPhone(ctx, phone)
@@ -108,7 +131,10 @@ func (s *userService) Register(ctx context.Context, phone, name, gender string, 
 	}
 	// Create user
 	uid := uuid.NewString()
-	u := &models.User{ID: uid, PhoneNumber: phone, Name: name, Gender: models.Gender(strings.ToLower(gender)), Email: email, Location: location}
+	u := &models.User{ID: uid, PhoneNumber: phone, Name: p.Name, Gender: models.Gender(strings.ToLower(p.Gender)), Email: p.Email, Location: p.Location}
+	// Set optional geo fields for response as well
+	u.Lat = p.Lat
+	u.Lng = p.Lng
 	if u.Gender != models.GenderMale && u.Gender != models.GenderFemale && u.Gender != models.GenderOther {
 		return nil, "", "", errors.New("invalid gender")
 	}
@@ -211,25 +237,32 @@ func (s *userService) Revoke(ctx context.Context, userID string) error {
 	return s.tokens.RevokeAllForUser(ctx, userID)
 }
 
-func (s *userService) UpdateUser(ctx context.Context, userID string, name, gender, email, location *string) (*models.User, error) {
-	u, err := s.users.GetByID(ctx, userID)
+func (s *userService) UpdateUser(ctx context.Context, p UpdateUserParams) (*models.User, error) {
+	u, err := s.users.GetByID(ctx, p.UserID)
 	if err != nil {
 		return nil, err
 	}
 	if u == nil {
 		return nil, errors.New("not found")
 	}
-	if name != nil {
-		u.Name = strings.TrimSpace(*name)
+	if p.Name != nil {
+		u.Name = strings.TrimSpace(*p.Name)
 	}
-	if gender != nil {
-		u.Gender = models.Gender(strings.ToLower(strings.TrimSpace(*gender)))
+	if p.Gender != nil {
+		u.Gender = models.Gender(strings.ToLower(strings.TrimSpace(*p.Gender)))
 	}
-	if email != nil {
-		u.Email = email
+	if p.Email != nil {
+		u.Email = p.Email
 	}
-	if location != nil {
-		u.Location = location
+	if p.Location != nil {
+		u.Location = p.Location
+	}
+	// reflect geo updates on returned model
+	if p.Lat != nil {
+		u.Lat = p.Lat
+	}
+	if p.Lng != nil {
+		u.Lng = p.Lng
 	}
 	if err := s.users.Update(ctx, u); err != nil {
 		return nil, err

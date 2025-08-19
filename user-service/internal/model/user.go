@@ -19,6 +19,8 @@ type User struct {
 	Gender      Gender    `json:"gender"`
 	Email       *string   `json:"email,omitempty"`
 	Location    *string   `json:"location,omitempty"`
+	Lat         *float64  `json:"lat,omitempty"`
+	Lng         *float64  `json:"lng,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
