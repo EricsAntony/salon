@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EricsAntony/salon/salon-service/internal/model"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"salon-service/internal/model"
 )
 
 var ErrNotFound = errors.New("not found")

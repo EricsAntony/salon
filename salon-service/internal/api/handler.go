@@ -6,15 +6,15 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/EricsAntony/salon/salon-service/internal/model"
-	"github.com/EricsAntony/salon/salon-service/internal/repository"
-	"github.com/EricsAntony/salon/salon-service/internal/service"
 	sharedAuth "github.com/EricsAntony/salon/salon-shared/auth"
 	sharedConfig "github.com/EricsAntony/salon/salon-shared/config"
 	"github.com/EricsAntony/salon/salon-shared/logger"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog/log"
+	"salon-service/internal/model"
+	"salon-service/internal/repository"
+	"salon-service/internal/service"
 )
 
 type Handler struct {

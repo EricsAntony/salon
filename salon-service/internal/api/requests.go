@@ -1,8 +1,8 @@
 package api
 
 import (
-	"github.com/EricsAntony/salon/salon-service/internal/service"
-	"github.com/EricsAntony/salon/salon-service/internal/model"
+	"salon-service/internal/model"
+	"salon-service/internal/service"
 )
 
 type salonPayload struct {
@@ -26,6 +26,14 @@ type createSalonRequest salonPayload
 
 type updateSalonRequest salonPayload
 
+func (r createSalonRequest) toCreateParams() service.CreateSalonParams {
+	return salonPayload(r).toCreateParams()
+}
+
+func (r updateSalonRequest) toUpdateParams(id string) service.UpdateSalonParams {
+	return salonPayload(r).toUpdateParams(id)
+}
+
 type branchPayload struct {
 	Name         string                 `json:"name"`
 	Address      map[string]any         `json:"address,omitempty"`
@@ -39,6 +47,14 @@ type branchPayload struct {
 type createBranchRequest branchPayload
 
 type updateBranchRequest branchPayload
+
+func (r createBranchRequest) toCreateParams(salonID string) service.CreateBranchParams {
+	return branchPayload(r).toCreateParams(salonID)
+}
+
+func (r updateBranchRequest) toUpdateParams(salonID, branchID string) service.UpdateBranchParams {
+	return branchPayload(r).toUpdateParams(salonID, branchID)
+}
 
 type createCategoryRequest struct {
 	Name        string  `json:"name"`
