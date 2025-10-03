@@ -77,6 +77,8 @@ type Staff struct {
 	ID             string             `json:"id"`
 	SalonID        string             `json:"salon_id"`
 	Name           string             `json:"name"`
+	PhoneNumber    string             `json:"phone_number"`
+	Email          *string            `json:"email,omitempty"`
 	Role           *string            `json:"role,omitempty"`
 	Specialization *string            `json:"specialization,omitempty"`
 	Photo          *string            `json:"photo,omitempty"`
@@ -90,4 +92,22 @@ type StaffService struct {
 	ID        string `json:"id"`
 	StaffID   string `json:"staff_id"`
 	ServiceID string `json:"service_id"`
+}
+
+type StaffOTP struct {
+	ID          int64     `json:"id"`
+	PhoneNumber string    `json:"phone_number"`
+	CodeHash    string    `json:"-"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	Attempts    int       `json:"attempts"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+type StaffRefreshToken struct {
+	ID        int64     `json:"id"`
+	StaffID   string    `json:"staff_id"`
+	TokenHash string    `json:"-"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
+	Revoked   bool      `json:"revoked"`
 }

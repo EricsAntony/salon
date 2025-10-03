@@ -77,6 +77,8 @@ type updateServiceRequest createServiceRequest
 
 type createStaffRequest struct {
 	Name           string              `json:"name"`
+	PhoneNumber    string              `json:"phone_number"`
+	Email          *string             `json:"email,omitempty"`
 	Role           *string             `json:"role,omitempty"`
 	Specialization *string             `json:"specialization,omitempty"`
 	Photo          *string             `json:"photo,omitempty"`
@@ -88,6 +90,19 @@ type updateStaffRequest createStaffRequest
 
 type setStaffServicesRequest struct {
 	ServiceIDs []string `json:"service_ids"`
+}
+
+type requestStaffOTPRequest struct {
+	PhoneNumber string `json:"phone_number"`
+}
+
+type authenticateStaffRequest struct {
+	PhoneNumber string `json:"phone_number"`
+	OTP         string `json:"otp"`
+}
+
+type refreshStaffSessionRequest struct {
+	RefreshToken string `json:"refresh_token"`
 }
 
 func (p salonPayload) toCreateParams() service.CreateSalonParams {
@@ -212,6 +227,8 @@ func (r createStaffRequest) toCreateParams(salonID string) service.CreateStaffPa
 	return service.CreateStaffParams{
 		SalonID:        salonID,
 		Name:           r.Name,
+		PhoneNumber:    r.PhoneNumber,
+		Email:          r.Email,
 		Role:           r.Role,
 		Specialization: r.Specialization,
 		Photo:          r.Photo,
@@ -225,6 +242,8 @@ func (r updateStaffRequest) toUpdateParams(salonID, id string) service.UpdateSta
 		ID:             id,
 		SalonID:        salonID,
 		Name:           r.Name,
+		PhoneNumber:    r.PhoneNumber,
+		Email:          r.Email,
 		Role:           r.Role,
 		Specialization: r.Specialization,
 		Photo:          r.Photo,

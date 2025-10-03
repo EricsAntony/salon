@@ -516,15 +516,17 @@ func (s *Store) CreateStaff(ctx context.Context, input *model.Staff) (*model.Sta
 	}
 	row := s.db.QueryRow(ctx, `
 		INSERT INTO staff (
-			id, salon_id, name, role, specialization, photo, status, shifts, created_at, updated_at
+			id, salon_id, name, phone_number, email, role, specialization, photo, status, shifts, created_at, updated_at
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW()
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW()
 		)
-		RETURNING id, salon_id, name, role, specialization, photo, status, shifts, created_at, updated_at
+		RETURNING id, salon_id, name, phone_number, email, role, specialization, photo, status, shifts, created_at, updated_at
 	`,
 		input.ID,
 		input.SalonID,
 		input.Name,
+		input.PhoneNumber,
+		input.Email,
 		input.Role,
 		input.Specialization,
 		input.Photo,
@@ -536,7 +538,7 @@ func (s *Store) CreateStaff(ctx context.Context, input *model.Staff) (*model.Sta
 
 func (s *Store) GetStaff(ctx context.Context, salonID, staffID string) (*model.Staff, error) {
 	row := s.db.QueryRow(ctx, `
-		SELECT id, salon_id, name, role, specialization, photo, status, shifts, created_at, updated_at
+		SELECT id, salon_id, name, phone_number, email, role, specialization, photo, status, shifts, created_at, updated_at
 		FROM staff WHERE id = $1 AND salon_id = $2
 	`, staffID, salonID)
 	return scanStaff(row)
@@ -549,12 +551,12 @@ func (s *Store) ListStaff(ctx context.Context, salonID string, status *model.Sta
 	)
 	if status != nil {
 		rows, err = s.db.Query(ctx, `
-			SELECT id, salon_id, name, role, specialization, photo, status, shifts, created_at, updated_at
+			SELECT id, salon_id, name, phone_number, email, role, specialization, photo, status, shifts, created_at, updated_at
 			FROM staff WHERE salon_id = $1 AND status = $2 ORDER BY name
 		`, salonID, *status)
 	} else {
 		rows, err = s.db.Query(ctx, `
-			SELECT id, salon_id, name, role, specialization, photo, status, shifts, created_at, updated_at
+			SELECT id, salon_id, name, phone_number, email, role, specialization, photo, status, shifts, created_at, updated_at
 			FROM staff WHERE salon_id = $1 ORDER BY name
 		`, salonID)
 	}
@@ -574,33 +576,19 @@ func (s *Store) ListStaff(ctx context.Context, salonID string, status *model.Sta
 	return staff, rows.Err()
 }
 
-func (s *Store) UpdateStaff(ctx context.Context, input *model.Staff) (*model.Staff, error) {
-	shiftsJSON, err := mapToJSONB(input.Shifts)
-	if err != nil {
-		return nil, fmt.Errorf("marshal shifts: %w", err)
-	}
+func (s *Store) GetStaffByPhone(ctx context.Context, phone string) (*model.Staff, error) {
 	row := s.db.QueryRow(ctx, `
-		UPDATE staff SET
-			name = $3,
-			role = $4,
-			specialization = $5,
-			photo = $6,
-			status = $7,
-			shifts = $8,
-			updated_at = NOW()
-		WHERE id = $1 AND salon_id = $2
-		RETURNING id, salon_id, name, role, specialization, photo, status, shifts, created_at, updated_at
-	`,
-		input.ID,
-		input.SalonID,
-		input.Name,
-		input.Role,
-		input.Specialization,
-		input.Photo,
-		input.Status,
-		shiftsJSON,
-	)
-	return scanStaff(row)
+		SELECT id, salon_id, name, phone_number, email, role, specialization, photo, status, shifts, created_at, updated_at
+		FROM staff WHERE phone_number = $1
+	`, phone)
+	st, err := scanStaff(row)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return st, nil
 }
 
 func (s *Store) DeleteStaff(ctx context.Context, salonID, staffID string) error {
@@ -612,6 +600,39 @@ func (s *Store) DeleteStaff(ctx context.Context, salonID, staffID string) error 
 		return ErrNotFound
 	}
 	return nil
+}
+
+func (s *Store) UpdateStaff(ctx context.Context, input *model.Staff) (*model.Staff, error) {
+	shiftsJSON, err := mapToJSONB(input.Shifts)
+	if err != nil {
+		return nil, fmt.Errorf("marshal shifts: %w", err)
+	}
+	row := s.db.QueryRow(ctx, `
+		UPDATE staff SET
+			name = $3,
+			phone_number = $4,
+			email = $5,
+			role = $6,
+			specialization = $7,
+			photo = $8,
+			status = $9,
+			shifts = $10,
+			updated_at = NOW()
+		WHERE id = $1 AND salon_id = $2
+		RETURNING id, salon_id, name, phone_number, email, role, specialization, photo, status, shifts, created_at, updated_at
+	`,
+		input.ID,
+		input.SalonID,
+		input.Name,
+		input.PhoneNumber,
+		input.Email,
+		input.Role,
+		input.Specialization,
+		input.Photo,
+		input.Status,
+		shiftsJSON,
+	)
+	return scanStaff(row)
 }
 
 func (s *Store) SetStaffServices(ctx context.Context, salonID, staffID string, serviceIDs []string) (err error) {
@@ -812,6 +833,8 @@ func scanService(row pgx.Row) (*model.Service, error) {
 func scanStaff(row pgx.Row) (*model.Staff, error) {
 	var (
 		st        model.Staff
+		phone     string
+		email     *string
 		role      *string
 		special   *string
 		photo     *string
@@ -821,6 +844,8 @@ func scanStaff(row pgx.Row) (*model.Staff, error) {
 		&st.ID,
 		&st.SalonID,
 		&st.Name,
+		&phone,
+		&email,
 		&role,
 		&special,
 		&photo,
@@ -834,6 +859,8 @@ func scanStaff(row pgx.Row) (*model.Staff, error) {
 		}
 		return nil, err
 	}
+	st.PhoneNumber = phone
+	st.Email = email
 	st.Role = role
 	st.Specialization = special
 	st.Photo = photo

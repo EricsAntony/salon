@@ -5,10 +5,11 @@ import (
 	"errors"
 	"time"
 
+	models "user-service/internal/model"
+
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
-	models "user-service/internal/model"
 )
 
 type UserRepository interface {
@@ -149,7 +150,7 @@ func (r *otpRepository) GetFailedAttemptsCount(ctx context.Context, phone string
 		WHERE phone_number = $1 
 		AND created_at > NOW() - (INTERVAL '1 minute') * $2
 		AND attempts > 0`, phone, windowMinutes)
-	
+
 	var count int
 	if err := row.Scan(&count); err != nil {
 		return 0, err

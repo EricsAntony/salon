@@ -258,6 +258,8 @@ func (p UpdateServiceParams) Validate() error {
 type CreateStaffParams struct {
 	SalonID        string
 	Name           string
+	PhoneNumber    string
+	Email          *string
 	Role           *string
 	Specialization *string
 	Photo          *string
@@ -273,6 +275,12 @@ func (p CreateStaffParams) Validate() error {
 	if strings.TrimSpace(p.Name) == "" {
 		errs = AppendValidationError(errs, "name", "is required")
 	}
+	if strings.TrimSpace(p.PhoneNumber) == "" {
+		errs = AppendValidationError(errs, "phone_number", "is required")
+	}
+	if p.Email != nil && strings.TrimSpace(*p.Email) == "" {
+		errs = AppendValidationError(errs, "email", "must not be empty if provided")
+	}
 	if !isValidStaffStatus(p.Status) {
 		errs = AppendValidationError(errs, "status", "must be 'active' or 'inactive'")
 	}
@@ -286,6 +294,8 @@ type UpdateStaffParams struct {
 	ID             string
 	SalonID        string
 	Name           string
+	PhoneNumber    string
+	Email          *string
 	Role           *string
 	Specialization *string
 	Photo          *string
@@ -304,8 +314,48 @@ func (p UpdateStaffParams) Validate() error {
 	if strings.TrimSpace(p.Name) == "" {
 		errs = AppendValidationError(errs, "name", "is required")
 	}
+	if strings.TrimSpace(p.PhoneNumber) == "" {
+		errs = AppendValidationError(errs, "phone_number", "is required")
+	}
+	if p.Email != nil && strings.TrimSpace(*p.Email) == "" {
+		errs = AppendValidationError(errs, "email", "must not be empty if provided")
+	}
 	if !isValidStaffStatus(p.Status) {
 		errs = AppendValidationError(errs, "status", "must be 'active' or 'inactive'")
+	}
+	if len(errs) > 0 {
+		return errs
+	}
+	return nil
+}
+
+type RequestStaffOTPParams struct {
+	PhoneNumber string
+}
+
+func (p RequestStaffOTPParams) Validate() error {
+	var errs ValidationErrors
+	if strings.TrimSpace(p.PhoneNumber) == "" {
+		errs = AppendValidationError(errs, "phone_number", "is required")
+	}
+	if len(errs) > 0 {
+		return errs
+	}
+	return nil
+}
+
+type AuthenticateStaffParams struct {
+	PhoneNumber string
+	OTP         string
+}
+
+func (p AuthenticateStaffParams) Validate() error {
+	var errs ValidationErrors
+	if strings.TrimSpace(p.PhoneNumber) == "" {
+		errs = AppendValidationError(errs, "phone_number", "is required")
+	}
+	if strings.TrimSpace(p.OTP) == "" {
+		errs = AppendValidationError(errs, "otp", "is required")
 	}
 	if len(errs) > 0 {
 		return errs

@@ -2,11 +2,18 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
+	"errors"
+	"fmt"
 	"strings"
+	"time"
 
-	"github.com/google/uuid"
 	"salon-service/internal/model"
 	"salon-service/internal/repository"
+
+	sharedconfig "github.com/EricsAntony/salon/salon-shared/config"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type SalonService interface {
@@ -38,16 +45,34 @@ type SalonService interface {
 	DeleteStaff(ctx context.Context, salonID, staffID string) error
 	SetStaffServices(ctx context.Context, salonID, staffID string, serviceIDs []string) error
 	ListStaffServices(ctx context.Context, staffID string) ([]string, error)
+	RequestStaffOTP(ctx context.Context, params RequestStaffOTPParams) error
+	AuthenticateStaff(ctx context.Context, params AuthenticateStaffParams) (*AuthenticateStaffResult, error)
+	RefreshStaffSession(ctx context.Context, staffID, refreshToken string) (*AuthenticateStaffResult, error)
 
 	HealthCheck(ctx context.Context) error
 }
 
 type salonService struct {
-	repo *repository.Store
+	repo      *repository.Store
+	authRepo  repository.StaffAuthRepository
+	cfg       *sharedconfig.Config
+	jwt       JWTIssuer
+	otpExpiry time.Duration
 }
 
-func New(repo *repository.Store) SalonService {
-	return &salonService{repo: repo}
+type JWTIssuer interface {
+	GenerateAccessToken(userID string) (string, time.Time, error)
+	GenerateRefreshToken(userID string) (string, time.Time, error)
+}
+
+func New(repo *repository.Store, authRepo repository.StaffAuthRepository, cfg *sharedconfig.Config, jwt JWTIssuer) SalonService {
+	return &salonService{
+		repo:      repo,
+		authRepo:  authRepo,
+		cfg:       cfg,
+		jwt:       jwt,
+		otpExpiry: time.Duration(cfg.OTP.ExpiryMinutes) * time.Minute,
+	}
 }
 
 func (s *salonService) CreateSalon(ctx context.Context, params CreateSalonParams) (*model.Salon, error) {
@@ -55,21 +80,21 @@ func (s *salonService) CreateSalon(ctx context.Context, params CreateSalonParams
 		return nil, err
 	}
 	salon := &model.Salon{
-		ID:               uuid.NewString(),
-		Name:             params.Name,
-		Description:      params.Description,
-		Contact:          params.Contact,
-		Address:          params.Address,
-		GeoLocation:      params.GeoLocation,
-		Logo:             params.Logo,
-		Banner:           params.Banner,
-		WorkingHours:     params.WorkingHours,
-		Holidays:         params.Holidays,
+		ID:                 uuid.NewString(),
+		Name:               params.Name,
+		Description:        params.Description,
+		Contact:            params.Contact,
+		Address:            params.Address,
+		GeoLocation:        params.GeoLocation,
+		Logo:               params.Logo,
+		Banner:             params.Banner,
+		WorkingHours:       params.WorkingHours,
+		Holidays:           params.Holidays,
 		CancellationPolicy: params.CancellationPolicy,
-		PaymentModes:     params.PaymentModes,
-		DefaultCurrency:  params.DefaultCurrency,
-		TaxRate:          params.TaxRate,
-		Settings:         params.Settings,
+		PaymentModes:       params.PaymentModes,
+		DefaultCurrency:    params.DefaultCurrency,
+		TaxRate:            params.TaxRate,
+		Settings:           params.Settings,
 	}
 	return s.repo.CreateSalon(ctx, salon)
 }
@@ -90,21 +115,21 @@ func (s *salonService) UpdateSalon(ctx context.Context, params UpdateSalonParams
 		return nil, err
 	}
 	salon := &model.Salon{
-		ID:               params.ID,
-		Name:             params.Name,
-		Description:      params.Description,
-		Contact:          params.Contact,
-		Address:          params.Address,
-		GeoLocation:      params.GeoLocation,
-		Logo:             params.Logo,
-		Banner:           params.Banner,
-		WorkingHours:     params.WorkingHours,
-		Holidays:         params.Holidays,
+		ID:                 params.ID,
+		Name:               params.Name,
+		Description:        params.Description,
+		Contact:            params.Contact,
+		Address:            params.Address,
+		GeoLocation:        params.GeoLocation,
+		Logo:               params.Logo,
+		Banner:             params.Banner,
+		WorkingHours:       params.WorkingHours,
+		Holidays:           params.Holidays,
 		CancellationPolicy: params.CancellationPolicy,
-		PaymentModes:     params.PaymentModes,
-		DefaultCurrency:  params.DefaultCurrency,
-		TaxRate:          params.TaxRate,
-		Settings:         params.Settings,
+		PaymentModes:       params.PaymentModes,
+		DefaultCurrency:    params.DefaultCurrency,
+		TaxRate:            params.TaxRate,
+		Settings:           params.Settings,
 	}
 	return s.repo.UpdateSalon(ctx, salon)
 }
@@ -229,7 +254,7 @@ func (s *salonService) CreateService(ctx context.Context, params CreateServicePa
 	service := &model.Service{
 		ID:          uuid.NewString(),
 		SalonID:     params.SalonID,
-		CategoryID: params.CategoryID,
+		CategoryID:  params.CategoryID,
 		Name:        params.Name,
 		Description: params.Description,
 		DurationMin: params.DurationMinutes,
@@ -259,7 +284,7 @@ func (s *salonService) UpdateService(ctx context.Context, params UpdateServicePa
 	service := &model.Service{
 		ID:          params.ID,
 		SalonID:     params.SalonID,
-		CategoryID: params.CategoryID,
+		CategoryID:  params.CategoryID,
 		Name:        params.Name,
 		Description: params.Description,
 		DurationMin: params.DurationMinutes,
@@ -284,17 +309,30 @@ func (s *salonService) CreateStaff(ctx context.Context, params CreateStaffParams
 	if err := params.Validate(); err != nil {
 		return nil, err
 	}
+	params.PhoneNumber = normalizePhone(params.PhoneNumber)
+	if params.PhoneNumber == "" {
+		return nil, ValidationErrors{{Field: "phone_number", Message: "invalid"}}
+	}
 	staff := &model.Staff{
 		ID:             uuid.NewString(),
 		SalonID:        params.SalonID,
 		Name:           params.Name,
+		PhoneNumber:    params.PhoneNumber,
+		Email:          params.Email,
 		Role:           params.Role,
 		Specialization: params.Specialization,
 		Photo:          params.Photo,
 		Status:         params.Status,
 		Shifts:         params.Shifts,
 	}
-	return s.repo.CreateStaff(ctx, staff)
+	created, err := s.repo.CreateStaff(ctx, staff)
+	if err != nil {
+		if repository.IsUniqueViolation(err) {
+			return nil, ValidationErrors{{Field: "phone_number", Message: "already registered"}}
+		}
+		return nil, err
+	}
+	return created, nil
 }
 
 func (s *salonService) ListStaff(ctx context.Context, salonID string, status *model.StaffStatus) ([]*model.Staff, error) {
@@ -308,17 +346,30 @@ func (s *salonService) UpdateStaff(ctx context.Context, params UpdateStaffParams
 	if err := params.Validate(); err != nil {
 		return nil, err
 	}
+	params.PhoneNumber = normalizePhone(params.PhoneNumber)
+	if params.PhoneNumber == "" {
+		return nil, ValidationErrors{{Field: "phone_number", Message: "invalid"}}
+	}
 	staff := &model.Staff{
 		ID:             params.ID,
 		SalonID:        params.SalonID,
 		Name:           params.Name,
+		PhoneNumber:    params.PhoneNumber,
+		Email:          params.Email,
 		Role:           params.Role,
 		Specialization: params.Specialization,
 		Photo:          params.Photo,
 		Status:         params.Status,
 		Shifts:         params.Shifts,
 	}
-	return s.repo.UpdateStaff(ctx, staff)
+	updated, err := s.repo.UpdateStaff(ctx, staff)
+	if err != nil {
+		if repository.IsUniqueViolation(err) {
+			return nil, ValidationErrors{{Field: "phone_number", Message: "already registered"}}
+		}
+		return nil, err
+	}
+	return updated, nil
 }
 
 func (s *salonService) DeleteStaff(ctx context.Context, salonID, staffID string) error {
@@ -351,6 +402,164 @@ func (s *salonService) ListStaffServices(ctx context.Context, staffID string) ([
 		return nil, err
 	}
 	return s.repo.ListStaffServices(ctx, staffID)
+}
+
+func (s *salonService) RequestStaffOTP(ctx context.Context, params RequestStaffOTPParams) error {
+	if err := params.Validate(); err != nil {
+		return err
+	}
+	phone := normalizePhone(params.PhoneNumber)
+	if phone == "" {
+		return ValidationErrors{{Field: "phone_number", Message: "invalid"}}
+	}
+
+	staff, err := s.repo.GetStaffByPhone(ctx, phone)
+	if err != nil {
+		return err
+	}
+	if staff == nil {
+		return ErrStaffNotFound
+	}
+
+	code, err := generateOTPCode()
+	if err != nil {
+		return err
+	}
+	codeHash, err := bcrypt.GenerateFromPassword([]byte(code), bcrypt.DefaultCost)
+	if err != nil {
+		return fmt.Errorf("hash otp: %w", err)
+	}
+
+	if err := s.authRepo.CreateOTP(ctx, phone, string(codeHash), time.Now().Add(s.otpExpiry)); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type AuthenticateStaffResult struct {
+	Staff        *model.Staff `json:"staff"`
+	AccessToken  string       `json:"access_token"`
+	RefreshToken string       `json:"refresh_token"`
+}
+
+var (
+	ErrStaffNotFound       = errors.New("staff not found")
+	ErrInvalidOTP          = errors.New("invalid otp")
+	ErrOTPExpired          = errors.New("otp expired")
+	ErrRefreshTokenInvalid = errors.New("refresh token invalid")
+)
+
+func (s *salonService) AuthenticateStaff(ctx context.Context, params AuthenticateStaffParams) (*AuthenticateStaffResult, error) {
+	if err := params.Validate(); err != nil {
+		return nil, err
+	}
+	phone := normalizePhone(params.PhoneNumber)
+	if phone == "" {
+		return nil, ValidationErrors{{Field: "phone_number", Message: "invalid"}}
+	}
+
+	staff, err := s.repo.GetStaffByPhone(ctx, phone)
+	if err != nil {
+		return nil, err
+	}
+	if staff == nil {
+		return nil, ErrStaffNotFound
+	}
+
+	otp, err := s.authRepo.GetLatestOTP(ctx, phone)
+	if err != nil {
+		return nil, err
+	}
+	if otp == nil {
+		return nil, ErrInvalidOTP
+	}
+	if time.Now().After(otp.ExpiresAt) {
+		return nil, ErrOTPExpired
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(otp.CodeHash), []byte(params.OTP)); err != nil {
+		_ = s.authRepo.IncrementOTPAttempts(ctx, otp.ID)
+		return nil, ErrInvalidOTP
+	}
+
+	return s.issueTokens(ctx, staff)
+}
+
+func (s *salonService) RefreshStaffSession(ctx context.Context, staffID, refreshToken string) (*AuthenticateStaffResult, error) {
+	if err := validateUUID("staff_id", staffID); err != nil {
+		return nil, err
+	}
+
+	staff, err := s.repo.GetStaff(ctx, staffID, staffID)
+	if err != nil {
+		return nil, err
+	}
+	if staff == nil {
+		return nil, ErrStaffNotFound
+	}
+
+	valid, err := s.authRepo.IsRefreshTokenValid(ctx, staff.ID, refreshToken, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	if !valid {
+		return nil, ErrRefreshTokenInvalid
+	}
+
+	return s.issueTokens(ctx, staff)
+}
+
+func (s *salonService) issueTokens(ctx context.Context, staff *model.Staff) (*AuthenticateStaffResult, error) {
+	accessToken, _, err := s.jwt.GenerateAccessToken(staff.ID)
+	if err != nil {
+		return nil, err
+	}
+	refreshToken, refreshExpiry, err := s.jwt.GenerateRefreshToken(staff.ID)
+	if err != nil {
+		return nil, err
+	}
+	refreshHash, err := bcrypt.GenerateFromPassword([]byte(refreshToken), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, fmt.Errorf("hash refresh token: %w", err)
+	}
+	if err := s.authRepo.CreateRefreshToken(ctx, staff.ID, string(refreshHash), refreshExpiry); err != nil {
+		return nil, err
+	}
+
+	return &AuthenticateStaffResult{
+		Staff:        staff,
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+func generateOTPCode() (string, error) {
+	buf := make([]byte, 4)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", int(buf[0])%1000000), nil
+}
+
+func normalizePhone(phone string) string {
+	replacer := strings.NewReplacer(" ", "", "-", "", "(", "", ")", "")
+	phone = replacer.Replace(strings.TrimSpace(phone))
+	if phone == "" {
+		return ""
+	}
+	if strings.HasPrefix(phone, "+") {
+		return phone
+	}
+	if len(phone) == 10 {
+		return "+91" + phone
+	}
+	if strings.HasPrefix(phone, "0") && len(phone) == 11 {
+		return "+91" + phone[1:]
+	}
+	if strings.HasPrefix(phone, "91") && len(phone) == 12 {
+		return "+" + phone
+	}
+	return phone
 }
 
 func (s *salonService) HealthCheck(ctx context.Context) error {

@@ -41,6 +41,12 @@ func (h *Handler) Routes() *chi.Mux {
 	r.Get("/ready", h.ready)
 
 	r.Group(func(r chi.Router) {
+		r.Post("/staff/otp", h.requestStaffOTP)
+		r.Post("/staff/auth", h.authenticateStaff)
+		r.Post("/staff/refresh", h.refreshStaffSession)
+	})
+
+	r.Group(func(r chi.Router) {
 		r.Use(h.jwt.Middleware())
 		r.Route("/salons", func(r chi.Router) {
 			r.Post("/", h.createSalon)
@@ -428,6 +434,52 @@ func (h *Handler) listStaffServices(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"service_ids": ids})
+}
+
+func (h *Handler) requestStaffOTP(w http.ResponseWriter, r *http.Request) {
+	var req requestStaffOTPRequest
+	if err := decodeRequest(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := h.svc.RequestStaffOTP(r.Context(), service.RequestStaffOTPParams{PhoneNumber: req.PhoneNumber}); err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"success": true})
+}
+
+func (h *Handler) authenticateStaff(w http.ResponseWriter, r *http.Request) {
+	var req authenticateStaffRequest
+	if err := decodeRequest(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	res, err := h.svc.AuthenticateStaff(r.Context(), service.AuthenticateStaffParams{PhoneNumber: req.PhoneNumber, OTP: req.OTP})
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
+}
+
+func (h *Handler) refreshStaffSession(w http.ResponseWriter, r *http.Request) {
+	var req refreshStaffSessionRequest
+	if err := decodeRequest(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	claims, err := h.jwt.ValidateRefreshToken(req.RefreshToken)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "invalid token")
+		return
+	}
+	res, err := h.svc.RefreshStaffSession(r.Context(), claims.UserID, req.RefreshToken)
+	if err != nil {
+		handleServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }
 
 func decodeRequest(r *http.Request, v any) error {
