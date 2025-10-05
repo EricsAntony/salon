@@ -29,9 +29,14 @@ go.work
 .env.*.local
 
 # JWT Secrets (NEVER commit these!)
+config/environments/*/secrets.env
 render-secrets-*.env
 *.secrets
 *.keys
+
+# Configuration backups
+config/environments/*/backup/
+config/environments/*/*.bak
 
 # IDE
 vscode/

@@ -34,6 +34,11 @@ help:
 	@echo "  make clean           Clean build artifacts"
 	@echo "  make tidy            Run go mod tidy for all services"
 	@echo "  make fmt             Format code for all services"
+	@echo ""
+	@echo "⚙️  Configuration Commands:"
+	@echo "  make config-list     List all environment configurations"
+	@echo "  make config-validate ENV=dev  Validate environment configs"
+	@echo "  make config-diff ENV1=dev ENV2=prod  Compare configs"
 
 # Build commands
 build: build-user build-salon
@@ -184,3 +189,20 @@ docs:
 	@echo "📚 Generating API documentation..."
 	@echo "User Service API: http://localhost:8080/docs"
 	@echo "Salon Service API: http://localhost:8081/docs"
+
+# Configuration management
+config-list:
+	@echo "📋 Listing all environment configurations..."
+	./config-manager.sh list
+
+config-validate:
+	@echo "🔍 Validating $(ENV) environment configurations..."
+	./config-manager.sh validate $(ENV)
+
+config-diff:
+	@echo "🔍 Comparing $(ENV1) vs $(ENV2) configurations..."
+	./config-manager.sh diff $(ENV1) $(ENV2)
+
+config-show:
+	@echo "📄 Showing $(ENV) $(SERVICE) configuration..."
+	./config-manager.sh show $(ENV) $(SERVICE)

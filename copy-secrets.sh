@@ -28,7 +28,7 @@ show_usage() {
 extract_secrets() {
     local env=$1
     local service=$2
-    local secrets_file="render-secrets-${env}.env"
+    local secrets_file="config/environments/${env}/secrets.env"
     
     if [ ! -f "$secrets_file" ]; then
         echo -e "${RED}Error: Secrets file not found: $secrets_file${NC}"

@@ -1,0 +1,17 @@
+env: dev
+server:
+  port: "8080"
+db:
+  url: "postgres://user:password@localhost:5432/salon?sslmode=disable"
+jwt:
+  accesssecret: "dev-access-secret-change-me"
+  refreshsecret: "dev-refresh-secret-change-me"
+  accessttlminutes: 60  # Longer for development
+  refreshttldays: 30    # Longer for development
+otp:
+  expiryminutes: 10     # Longer for testing
+ratelimit:
+  otprequestsperminute: 5  # More lenient for dev
+log:
+  level: debug
+  servicename: user-service-dev

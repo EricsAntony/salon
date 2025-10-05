@@ -1,0 +1,17 @@
+env: prod
+server:
+  port: "8080"
+db:
+  url: "postgres://user:password@prod-db.example.com:5432/salon_prod?sslmode=require"
+jwt:
+  accesssecret: ""  # Set via environment variables
+  refreshsecret: ""  # Set via environment variables
+  accessttlminutes: 15
+  refreshttldays: 7
+otp:
+  expiryminutes: 5
+ratelimit:
+  otprequestsperminute: 3
+log:
+  level: warn  # Minimal logging for production
+  servicename: user-service-prod

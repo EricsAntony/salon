@@ -1,0 +1,15 @@
+env: stage
+server:
+  port: "8081"
+db:
+  url: "postgres://user:password@stage-db.example.com:5432/salon_stage?sslmode=require"
+jwt:
+  accesssecret: ""  # Set via environment variables
+  refreshsecret: ""  # Set via environment variables
+  accessttlminutes: 15
+  refreshttldays: 7
+otp:
+  expiryminutes: 5
+log:
+  level: info
+  servicename: salon-service-stage

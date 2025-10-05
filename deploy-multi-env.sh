@@ -73,7 +73,7 @@ validate_service() {
 # Get render config file for environment
 get_render_config() {
     local env=$1
-    echo "render-${env}.yaml"
+    echo "config/environments/${env}/render.yaml"
 }
 
 # Check if render config exists
@@ -132,7 +132,7 @@ validate_build() {
 # Generate environment-specific secrets
 generate_secrets() {
     local env=$1
-    local secrets_file="render-secrets-${env}.env"
+    local secrets_file="config/environments/${env}/secrets.env"
     
     log_info "Generating secrets template for $env environment..."
     
@@ -252,7 +252,7 @@ show_environment_status() {
     echo "  • Auto-deploy: enabled"
     echo "  • Plan: free"
     echo "  • Log level: debug"
-    echo "  • Config: render-dev.yaml"
+    echo "  • Config: config/environments/dev/render.yaml"
     echo ""
     
     echo "🧪 STAGE Environment:"
@@ -260,7 +260,7 @@ show_environment_status() {
     echo "  • Auto-deploy: disabled (manual)"
     echo "  • Plan: starter"
     echo "  • Log level: info"
-    echo "  • Config: render-stage.yaml"
+    echo "  • Config: config/environments/stage/render.yaml"
     echo ""
     
     echo "🚀 PROD Environment:"
@@ -268,7 +268,7 @@ show_environment_status() {
     echo "  • Auto-deploy: disabled (manual)"
     echo "  • Plan: standard"
     echo "  • Log level: warn"
-    echo "  • Config: render-prod.yaml"
+    echo "  • Config: config/environments/prod/render.yaml"
     echo ""
     
     echo "🌐 Service URLs (after deployment):"
@@ -309,6 +309,12 @@ main() {
     echo "🚀 Salon Platform Multi-Environment Deployment"
     echo "=============================================="
     
+    # Handle special commands first
+    if [ "$service" = "status" ]; then
+        show_environment_status
+        exit 0
+    fi
+    
     # Validate inputs
     if ! validate_service $service; then
         exit 1
@@ -341,14 +347,16 @@ main() {
         exit 0
     fi
     
+    # Handle special commands
+    if [ "$service" = "status" ]; then
+        show_environment_status
+        exit 0
+    fi
+    
     # Deploy
     case $service in
         "user-service"|"salon-service"|"all")
             deploy_environment $service $env $auto_deploy_flag
-            ;;
-        "status")
-            show_environment_status
-            exit 0
             ;;
     esac
     
@@ -363,7 +371,7 @@ main() {
     echo "   • STAGE/PROD: git push origin main"
     echo "2. Connect your GitHub repo to Render"
     echo "3. Create services using $(get_render_config $env) blueprint"
-    echo "4. Set environment variables from render-secrets-${env}.env"
+    echo "4. Set environment variables from config/environments/${env}/secrets.env"
     echo "5. Trigger deployment (auto for dev, manual for stage/prod)"
     echo ""
     echo "📚 Documentation: https://render.com/docs/deploy-from-github"

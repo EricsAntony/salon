@@ -57,6 +57,11 @@ make deploy         # Deploy all to Render
 make deploy-user    # Deploy user-service only
 make deploy-salon   # Deploy salon-service only
 make deploy-status  # Show deployment status
+
+# Configuration Management
+make config-list    # List all environment configurations
+make config-validate ENV=dev  # Validate environment configs
+make config-diff ENV1=dev ENV2=prod  # Compare configs
 ```
 
 ##  Multi-Environment Deployment
@@ -211,23 +216,30 @@ Both services share a single PostgreSQL database named `salon`:
 ##  Development
 
 ### Project Structure
-```
 salon/
-├── user-service/          # Customer API service
-├── salon-service/         # Business management API
-├── salon-shared/          # Shared components
+├── user-service/              # Customer API service
+├── salon-service/             # Business management API
+├── salon-shared/              # Shared components
+├── config/                    # Configuration management
+│   ├── environments/          # Environment-specific configs
+│   │   ├── dev/              # Development environment
+│   │   │   ├── render.yaml   # Render deployment config
+│   │   │   ├── *.yaml        # Service configurations
+│   │   │   └── secrets.env   # Environment secrets
+│   │   ├── stage/            # Staging environment
+│   │   └── prod/             # Production environment
+│   └── README.md             # Configuration guide
 ├── Dockerfile.user-service    # User service container
 ├── Dockerfile.salon-service   # Salon service container
-├── render.yaml           # Render deployment config
-├── docker-compose.yml    # Local development
-├── deploy.sh            # Deployment script
-└── Makefile            # Build automation
-```
+├── docker-compose.yml        # Local development
+├── deploy-multi-env.sh       # Multi-environment deployment
+├── config-manager.sh         # Configuration management
+├── copy-secrets.sh           # Secret management helper
+└── Makefile                  # Build automation
 
 ### Adding New Services
 
 1. Create service directory
-2. Import `salon-shared` components
 3. Add service to `docker-compose.yml`
 4. Update `render.yaml` for production
 5. Add build targets to `Makefile`
