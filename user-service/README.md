@@ -37,11 +37,11 @@ See directories:
 Note: For demo, OTP codes are logged. Integrate an SMS provider in production.
 
 ## Run locally
-1. Start Postgres and create DB `salon_users`.
+1. Start Postgres and create DB `salon`.
 2. Export env or create `.env` (see example).
 3. Run migrations:
    ```sh
-   make migrate-up MIGRATE_DB_URL="postgres://user:password@localhost:5432/salon_users?sslmode=disable"
+   make migrate-up MIGRATE_DB_URL="postgres://user:password@localhost:5432/salon?sslmode=disable"
    ```
 4. Build and run:
    ```sh

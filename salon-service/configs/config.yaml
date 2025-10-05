@@ -1,6 +1,6 @@
 env: dev
 server:
-  port: "8080"
+  port: "8081"
 db:
   url: "postgres://user:password@localhost:5432/salon?sslmode=disable"
 jwt:
@@ -10,8 +10,6 @@ jwt:
   refreshttldays: 7
 otp:
   expiryminutes: 5
-ratelimit:
-  otprequestsperminute: 3
 log:
-  level: "info"
-  servicename: "user-service"
+  level: info
+  servicename: salon-service

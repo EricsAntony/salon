@@ -7,13 +7,13 @@ services:
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: salon_users
+      POSTGRES_DB: salon
     ports:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U user -d salon_users"]
+      test: ["CMD-SHELL", "pg_isready -U user -d salon"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -28,7 +28,7 @@ services:
     volumes:
       - ./migrations:/migrations:ro
     entrypoint: ["/usr/local/bin/migrate"]
-    command: ["-path", "/migrations", "-database", "postgres://user:password@db:5432/salon_users?sslmode=disable", "up"]
+    command: ["-path", "/migrations", "-database", "postgres://user:password@db:5432/salon?sslmode=disable", "up"]
     restart: "no"
 
   user-service:
@@ -41,7 +41,7 @@ services:
         condition: service_completed_successfully
     environment:
       USER_SERVICE_ENV: docker
-      USER_SERVICE_DB_URL: postgres://user:password@db:5432/salon_users?sslmode=disable
+      USER_SERVICE_DB_URL: postgres://user:password@db:5432/salon?sslmode=disable
       USER_SERVICE_JWT_ACCESSSECRET: dev-access-secret-change-me
       USER_SERVICE_JWT_REFRESHSECRET: dev-refresh-secret-change-me
       USER_SERVICE_LOG_LEVEL: info

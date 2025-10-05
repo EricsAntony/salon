@@ -261,16 +261,12 @@ func (h *Handler) deleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{
-		"status":  "ok",
-		"service": "user-service",
-	})
+	h.healthCheck(w, r)
 }
 
 func (h *Handler) readiness(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Check database connectivity
 	if err := h.svc.HealthCheck(ctx); err != nil {
 		log.Error().Err(err).Msg("readiness check failed")
 		writeErr(w, http.StatusServiceUnavailable, "database connectivity failed")

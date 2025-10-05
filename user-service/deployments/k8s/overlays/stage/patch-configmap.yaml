@@ -8,7 +8,7 @@ data:
     server:
       port: "8080"
     db:
-      url: "postgres://user:password@stage-db.example.com:5432/salon_users_stage?sslmode=disable"
+      url: "postgres://user:password@stage-db.example.com:5432/salon_stage?sslmode=disable"
     jwt:
       accesssecret: ""
       refreshsecret: ""

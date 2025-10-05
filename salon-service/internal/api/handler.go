@@ -118,11 +118,8 @@ func (h *Handler) Routes() *chi.Mux {
 	return r
 }
 
-func (h *Handler) health(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{
-		"status":  "ok",
-		"service": "salon-service",
-	})
+func (h *Handler) health(w http.ResponseWriter, r *http.Request) {
+	h.healthCheck(w, r)
 }
 
 func (h *Handler) ready(w http.ResponseWriter, r *http.Request) {

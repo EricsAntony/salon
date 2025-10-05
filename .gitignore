@@ -22,11 +22,28 @@ profile.cov
 
 # Go workspace file
 go.work
-go.work.sum
 
-# env file
+# Environment variables
 .env
+.env.local
+.env.*.local
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# JWT Secrets (NEVER commit these!)
+render-secrets-*.env
+*.secrets
+*.keys
+
+# IDE
+vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts
+bin/
+dist/

@@ -18,7 +18,7 @@ docker:
 	docker build -t $(APP):local .
 
 # Migrations (requires golang-migrate installed)
-MIGRATE_DB_URL ?= postgres://user:password@localhost:5432/salon_users?sslmode=disable
+MIGRATE_DB_URL ?= postgres://user:password@localhost:5432/salon?sslmode=disable
 migrate-up:
 	migrate -database $(MIGRATE_DB_URL) -path ./migrations up
 migrate-down:
@@ -44,10 +44,10 @@ compose-restart:
 
 # Run migrations inside compose using migrate container
 migrate-up-compose:
-	docker compose run --rm migrate -path /migrations -database postgres://user:password@db:5432/salon_users?sslmode=disable up
+	docker compose run --rm migrate -path /migrations -database postgres://user:password@db:5432/salon?sslmode=disable up
 
 migrate-down-compose:
-	docker compose run --rm migrate -path /migrations -database postgres://user:password@db:5432/salon_users?sslmode=disable down 1
+	docker compose run --rm migrate -path /migrations -database postgres://user:password@db:5432/salon?sslmode=disable down 1
 
 # --- Kubernetes (Kustomize) helpers ---
 .PHONY: k8s-ns k8s-apply-dev k8s-apply-stage k8s-apply-prod k8s-delete-dev k8s-delete-stage k8s-delete-prod k8s-secrets-dev k8s-secrets-stage k8s-secrets-prod

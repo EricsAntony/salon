@@ -1,0 +1,74 @@
+services:
+  # User Service - Production
+  - type: web
+    name: user-service-prod
+    runtime: docker
+    plan: standard  # Production-grade performance
+    branch: main
+    autoDeploy: false  # Manual deploy for production
+    dockerfilePath: ./Dockerfile.user-service
+    envVars:
+      - key: PORT
+        value: 8080
+      - key: USER_SERVICE_ENV
+        value: prod
+      - key: USER_SERVICE_SERVER_PORT
+        value: 8080
+      - key: USER_SERVICE_DB_URL
+        fromDatabase:
+          name: salon-db-prod
+          property: connectionString
+      - key: USER_SERVICE_JWT_ACCESSSECRET
+        sync: false
+      - key: USER_SERVICE_JWT_REFRESHSECRET
+        sync: false
+      - key: USER_SERVICE_JWT_ACCESSTTLMINUTES
+        value: 15
+      - key: USER_SERVICE_JWT_REFRESHTTLDAYS
+        value: 7
+      - key: USER_SERVICE_OTP_EXPIRYMINUTES
+        value: 5
+      - key: USER_SERVICE_LOG_LEVEL
+        value: warn
+      - key: USER_SERVICE_LOG_SERVICENAME
+        value: user-service-prod
+
+  # Salon Service - Production
+  - type: web
+    name: salon-service-prod
+    runtime: docker
+    plan: standard  # Production-grade performance
+    branch: main
+    autoDeploy: false  # Manual deploy for production
+    dockerfilePath: ./Dockerfile.salon-service
+    envVars:
+      - key: PORT
+        value: 8081
+      - key: SALON_SERVICE_ENV
+        value: prod
+      - key: SALON_SERVICE_SERVER_PORT
+        value: 8081
+      - key: SALON_SERVICE_DB_URL
+        fromDatabase:
+          name: salon-db-prod
+          property: connectionString
+      - key: SALON_SERVICE_JWT_ACCESSSECRET
+        sync: false
+      - key: SALON_SERVICE_JWT_REFRESHSECRET
+        sync: false
+      - key: SALON_SERVICE_JWT_ACCESSTTLMINUTES
+        value: 15
+      - key: SALON_SERVICE_JWT_REFRESHTTLDAYS
+        value: 7
+      - key: SALON_SERVICE_OTP_EXPIRYMINUTES
+        value: 5
+      - key: SALON_SERVICE_LOG_LEVEL
+        value: warn
+      - key: SALON_SERVICE_LOG_SERVICENAME
+        value: salon-service-prod
+
+databases:
+  - name: salon-db-prod
+    plan: standard
+    databaseName: salon_prod
+    user: salon_user_prod

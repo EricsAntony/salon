@@ -1,6 +1,10 @@
 # Multi-stage build for salon-service
 FROM golang:1.23-alpine AS builder
 
+# Install migrate binary and security updates
+RUN apk update && apk add --no-cache git ca-certificates tzdata && \
+    go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@v4.17.1
+
 # Set working directory
 WORKDIR /app
 
@@ -10,21 +14,40 @@ COPY . .
 # Build the salon-service
 WORKDIR /app/salon-service
 RUN go mod tidy && \
-    CGO_ENABLED=0 GOOS=linux go build -o salon-service ./cmd
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o salon-service ./cmd
 
-# Final stage - minimal runtime image
-FROM alpine:latest
+# Final stage - minimal runtime image with security updates
+FROM alpine:3.19
 
-# Install ca-certificates for HTTPS requests
-RUN apk --no-cache add ca-certificates
+# Install runtime dependencies and security updates
+RUN apk update && apk add --no-cache ca-certificates postgresql-client tzdata && \
+    rm -rf /var/cache/apk/*
 
-WORKDIR /root/
+# Create non-root user for security
+RUN adduser -D -s /bin/sh -u 10001 appuser
 
-# Copy the binary from builder stage
+WORKDIR /app
+
+# Copy binaries from builder stage
 COPY --from=builder /app/salon-service/salon-service .
+COPY --from=builder /go/bin/migrate .
+
+# Copy configs and migrations
+COPY --from=builder /app/salon-service/configs/ ./configs/
+COPY --from=builder /app/salon-service/migrations/ ./migrations/
+
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose port
 EXPOSE 8081
 
-# Run the binary
-CMD ["./salon-service"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8081/health || exit 1
+
+# Run migrations and start service
+ENTRYPOINT ["/bin/sh", "-c", "./migrate -path ./migrations -database \"$SALON_SERVICE_DB_URL\" up && exec ./salon-service"]
