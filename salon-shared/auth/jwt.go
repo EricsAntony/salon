@@ -22,8 +22,14 @@ type JWTManager struct {
 	refreshTTL    time.Duration
 }
 
+const (
+	UserTypeSalon    = "salon_USER"
+	UserTypeCustomer = "customer"
+)
+
 type Claims struct {
-	UserID string `json:"uid"`
+	UserID   string `json:"uid"`
+	UserType string `json:"user_type"`
 	jwt.RegisteredClaims
 }
 
@@ -37,16 +43,32 @@ func NewJWTManager(cfg *config.Config) *JWTManager {
 }
 
 func (m *JWTManager) GenerateAccessToken(userID string) (string, time.Time, error) {
+	return m.GenerateAccessTokenWithType(userID, "")
+}
+
+func (m *JWTManager) GenerateAccessTokenWithType(userID, userType string) (string, time.Time, error) {
 	exp := time.Now().Add(m.accessTTL)
-	claims := &Claims{UserID: userID, RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(exp)}}
+	claims := &Claims{
+		UserID:   userID,
+		UserType: userType,
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(exp)},
+	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	s, err := t.SignedString(m.accessSecret)
 	return s, exp, err
 }
 
 func (m *JWTManager) GenerateRefreshToken(userID string) (string, time.Time, error) {
+	return m.GenerateRefreshTokenWithType(userID, "")
+}
+
+func (m *JWTManager) GenerateRefreshTokenWithType(userID, userType string) (string, time.Time, error) {
 	exp := time.Now().Add(m.refreshTTL)
-	claims := &Claims{UserID: userID, RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(exp)}}
+	claims := &Claims{
+		UserID:   userID,
+		UserType: userType,
+		RegisteredClaims: jwt.RegisteredClaims{ExpiresAt: jwt.NewNumericDate(exp)},
+	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	s, err := t.SignedString(m.refreshSecret)
 	return s, exp, err
@@ -58,6 +80,17 @@ func (m *JWTManager) ValidateAccessToken(tok string) (*Claims, error) {
 
 func (m *JWTManager) ValidateRefreshToken(tok string) (*Claims, error) {
 	return m.parse(tok, m.refreshSecret)
+}
+
+func (m *JWTManager) ValidateAccessTokenWithType(tok, expectedUserType string) (*Claims, error) {
+	claims, err := m.parse(tok, m.accessSecret)
+	if err != nil {
+		return nil, err
+	}
+	if expectedUserType != "" && claims.UserType != expectedUserType {
+		return nil, errors.New("invalid user type")
+	}
+	return claims, nil
 }
 
 func (m *JWTManager) parse(tok string, secret []byte) (*Claims, error) {

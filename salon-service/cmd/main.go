@@ -41,7 +41,7 @@ func main() {
     jwtManager := sharedAuth.NewJWTManager(sharedCfg)
 
     svc := service.New(store, staffAuthRepo, sharedCfg, jwtManager)
-    handler := api.NewHandler(sharedCfg, svc)
+    handler := api.NewHandler(sharedCfg, svc, store)
 
     router := handler.Routes()
 

@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -12,7 +11,8 @@ import (
 	appErrors "user-service/internal/errors"
 	"user-service/internal/repository"
 
-	"github.com/EricsAntony/salon/salon-shared/auth"
+	sharedauth "github.com/EricsAntony/salon/salon-shared/auth"
+	sharedvalidation "github.com/EricsAntony/salon/salon-shared/validation"
 	models "user-service/internal/model"
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
@@ -30,7 +30,6 @@ type RegisterParams struct {
 	OTP      string
 }
 
-// UpdateUserParams bundles inputs to UpdateUser
 type UpdateUserParams struct {
 	UserID   string
 	Location *string
@@ -54,57 +53,69 @@ type userService struct {
 	users  repository.UserRepository
 	otps   repository.OTPRepository
 	tokens repository.TokenRepository
-	jwt    *auth.JWTManager
+	jwt    *sharedauth.JWTManager
 	cfg    *config.Config
 }
 
-func NewUserService(u repository.UserRepository, o repository.OTPRepository, t repository.TokenRepository, jwt *auth.JWTManager, cfg *config.Config) UserService {
+func NewUserService(u repository.UserRepository, o repository.OTPRepository, t repository.TokenRepository, jwt *sharedauth.JWTManager, cfg *config.Config) UserService {
 	return &userService{users: u, otps: o, tokens: t, jwt: jwt, cfg: cfg}
 }
 
-func normalizePhone(phone string) string {
-	p := strings.TrimSpace(phone)
-	p = strings.ReplaceAll(p, " ", "")
-	p = strings.ReplaceAll(p, "-", "")
-	return p
-}
 
 func (s *userService) RequestOTP(ctx context.Context, phone string) (string, error) {
-	phone = normalizePhone(phone)
-	if phone == "" {
-		return "", errors.New("phone required")
-	}
-	code := fmt.Sprintf("%06d", rand.Intn(1000000))
-	exp := time.Now().Add(time.Duration(s.cfg.OTP.ExpiryMinutes) * time.Minute)
-	hash := auth.HashString(code)
-	if err := s.otps.Create(ctx, phone, hash, exp); err != nil {
+	// Use shared phone validation and normalization
+	normalizedPhone, err := sharedvalidation.ValidatePhone(phone)
+	if err != nil {
 		return "", err
 	}
-	auth.SendOTPViaSMS(phone, code)
+	
+	// Generate OTP using shared utility
+	code, err := sharedvalidation.GenerateOTP()
+	if err != nil {
+		return "", err
+	}
+	
+	exp := time.Now().Add(time.Duration(s.cfg.OTP.ExpiryMinutes) * time.Minute)
+	hash := sharedauth.HashString(code)
+	if err := s.otps.Create(ctx, normalizedPhone, hash, exp); err != nil {
+		return "", err
+	}
+	sharedauth.SendOTPViaSMS(normalizedPhone, code)
 	return code, nil
 }
 
 func (s *userService) verifyOTP(ctx context.Context, phone, otp string) error {
+	// Validate OTP format using shared validation
+	if err := sharedvalidation.ValidateOTP(otp); err != nil {
+		return appErrors.ErrInvalidOTP
+	}
+	
+	// Normalize phone using shared validation
+	normalizedPhone, err := sharedvalidation.ValidatePhone(phone)
+	if err != nil {
+		return err
+	}
+	
 	// Check rate limiting for failed attempts
-	failedCount, err := s.otps.GetFailedAttemptsCount(ctx, phone, s.cfg.OTP.FailureWindowMinutes)
+	failedCount, err := s.otps.GetFailedAttemptsCount(ctx, normalizedPhone, s.cfg.OTP.FailureWindowMinutes)
 	log.Info().Int("failure_window_minutes", s.cfg.OTP.FailureWindowMinutes).Msg("OTP failure count")
 	if err != nil {
-		log.Error().Err(err).Str("phone", phone).Msg("failed to check OTP failure count")
+		log.Error().Err(err).Str("phone", normalizedPhone).Msg("failed to check OTP failure count")
 		return appErrors.ErrInternalError
 	}
 	if failedCount >= s.cfg.OTP.MaxFailedAttempts {
-		log.Warn().Str("phone", phone).Int("failed_count", failedCount).Msg("OTP rate limit exceeded")
+		log.Warn().Str("phone", normalizedPhone).Int("failed_count", failedCount).Msg("OTP rate limit exceeded")
 		return appErrors.ErrRateLimited
 	}
 
-	rec, err := s.otps.GetLatest(ctx, phone)
+	rec, err := s.otps.GetLatest(ctx, normalizedPhone)
 	if err != nil {
 		return appErrors.ErrInternalError
 	}
 	if rec == nil {
 		return appErrors.ErrOTPNotRequested
 	}
-	if auth.HashString(otp) != rec.CodeHash {
+	if sharedauth.HashString(otp) != rec.CodeHash {
 		_ = s.otps.IncrementAttempts(ctx, rec.ID)
 		return appErrors.ErrInvalidOTP
 	}
@@ -115,7 +126,11 @@ func (s *userService) verifyOTP(ctx context.Context, phone, otp string) error {
 }
 
 func (s *userService) Register(ctx context.Context, p RegisterParams) (*models.User, string, string, error) {
-	phone := normalizePhone(p.Phone)
+	// Use shared phone validation and normalization
+	phone, err := sharedvalidation.ValidatePhone(p.Phone)
+	if err != nil {
+		return nil, "", "", err
+	}
 	if err := s.verifyOTP(ctx, phone, p.OTP); err != nil {
 		return nil, "", "", err
 	}
@@ -139,11 +154,11 @@ func (s *userService) Register(ctx context.Context, p RegisterParams) (*models.U
 		return nil, "", "", err
 	}
 	// Tokens
-	access, _, err := s.jwt.GenerateAccessToken(uid)
+	access, _, err := s.jwt.GenerateAccessTokenWithType(uid, sharedauth.UserTypeCustomer)
 	if err != nil {
 		return nil, "", "", err
 	}
-	refresh, rexp, err := s.jwt.GenerateRefreshToken(uid)
+	refresh, rexp, err := s.jwt.GenerateRefreshTokenWithType(uid, sharedauth.UserTypeCustomer)
 	if err != nil {
 		return nil, "", "", err
 	}
@@ -151,29 +166,33 @@ func (s *userService) Register(ctx context.Context, p RegisterParams) (*models.U
 	if err := s.tokens.RevokeAllForUser(ctx, uid); err != nil {
 		return nil, "", "", err
 	}
-	if err := s.tokens.Save(ctx, uid, auth.HashString(refresh), rexp); err != nil {
+	if err := s.tokens.Save(ctx, uid, sharedauth.HashString(refresh), rexp); err != nil {
 		return nil, "", "", err
 	}
 	return u, access, refresh, nil
 }
 
 func (s *userService) Authenticate(ctx context.Context, phone, otp string) (string, string, string, error) {
-	phone = normalizePhone(phone)
-	if err := s.verifyOTP(ctx, phone, otp); err != nil {
+	// Use shared phone validation and normalization
+	normalizedPhone, err := sharedvalidation.ValidatePhone(phone)
+	if err != nil {
 		return "", "", "", err
 	}
-	u, err := s.users.GetByPhone(ctx, phone)
+	if err := s.verifyOTP(ctx, normalizedPhone, otp); err != nil {
+		return "", "", "", err
+	}
+	u, err := s.users.GetByPhone(ctx, normalizedPhone)
 	if err != nil {
 		return "", "", "", err
 	}
 	if u == nil {
 		return "", "", "", appErrors.ErrUserNotRegistered
 	}
-	access, _, err := s.jwt.GenerateAccessToken(u.ID)
+	access, _, err := s.jwt.GenerateAccessTokenWithType(u.ID, sharedauth.UserTypeCustomer)
 	if err != nil {
 		return "", "", "", err
 	}
-	refresh, rexp, err := s.jwt.GenerateRefreshToken(u.ID)
+	refresh, rexp, err := s.jwt.GenerateRefreshTokenWithType(u.ID, sharedauth.UserTypeCustomer)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -181,7 +200,7 @@ func (s *userService) Authenticate(ctx context.Context, phone, otp string) (stri
 	if err := s.tokens.RevokeAllForUser(ctx, u.ID); err != nil {
 		return "", "", "", err
 	}
-	if err := s.tokens.Save(ctx, u.ID, auth.HashString(refresh), rexp); err != nil {
+	if err := s.tokens.Save(ctx, u.ID, sharedauth.HashString(refresh), rexp); err != nil {
 		return "", "", "", err
 	}
 	return u.ID, access, refresh, nil
@@ -205,7 +224,7 @@ func (s *userService) Refresh(ctx context.Context, refreshToken string) (string,
 	}
 	uid := claims.UserID
 	// validate against DB
-	valid, err := s.tokens.IsValid(ctx, uid, auth.HashString(refreshToken), time.Now())
+	valid, err := s.tokens.IsValid(ctx, uid, sharedauth.HashString(refreshToken), time.Now())
 	if err != nil {
 		return "", "", err
 	}
@@ -213,18 +232,18 @@ func (s *userService) Refresh(ctx context.Context, refreshToken string) (string,
 		return "", "", errors.New("invalid or revoked refresh token")
 	}
 	// rotate
-	if err := s.tokens.RevokeExact(ctx, uid, auth.HashString(refreshToken)); err != nil {
+	if err := s.tokens.RevokeExact(ctx, uid, sharedauth.HashString(refreshToken)); err != nil {
 		return "", "", err
 	}
-	access, _, err := s.jwt.GenerateAccessToken(uid)
+	access, _, err := s.jwt.GenerateAccessTokenWithType(uid, sharedauth.UserTypeCustomer)
 	if err != nil {
 		return "", "", err
 	}
-	newRefresh, rexp, err := s.jwt.GenerateRefreshToken(uid)
+	newRefresh, rexp, err := s.jwt.GenerateRefreshTokenWithType(uid, sharedauth.UserTypeCustomer)
 	if err != nil {
 		return "", "", err
 	}
-	if err := s.tokens.Save(ctx, uid, auth.HashString(newRefresh), rexp); err != nil {
+	if err := s.tokens.Save(ctx, uid, sharedauth.HashString(newRefresh), rexp); err != nil {
 		return "", "", err
 	}
 	return access, newRefresh, nil

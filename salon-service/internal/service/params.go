@@ -3,8 +3,10 @@ package service
 import (
 	"strings"
 
-	"github.com/google/uuid"
 	"salon-service/internal/model"
+
+	sharederrors "github.com/EricsAntony/salon/salon-shared/errors"
+	"github.com/google/uuid"
 )
 
 type CreateSalonParams struct {
@@ -25,15 +27,15 @@ type CreateSalonParams struct {
 }
 
 func (p CreateSalonParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if strings.TrimSpace(p.Name) == "" {
-		errs = AppendValidationError(errs, "name", "is required")
+		errs = sharederrors.AppendValidationError(errs, "name", "is required")
 	}
 	if strings.TrimSpace(p.DefaultCurrency) == "" {
-		errs = AppendValidationError(errs, "default_currency", "is required")
+		errs = sharederrors.AppendValidationError(errs, "default_currency", "is required")
 	}
 	if p.TaxRate < 0 {
-		errs = AppendValidationError(errs, "tax_rate", "must be greater than or equal to 0")
+		errs = sharederrors.AppendValidationError(errs, "tax_rate", "must be greater than or equal to 0")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -60,18 +62,18 @@ type UpdateSalonParams struct {
 }
 
 func (p UpdateSalonParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if _, err := uuid.Parse(strings.TrimSpace(p.ID)); err != nil {
-		errs = AppendValidationError(errs, "id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "id", "must be a valid UUID")
 	}
 	if strings.TrimSpace(p.Name) == "" {
-		errs = AppendValidationError(errs, "name", "is required")
+		errs = sharederrors.AppendValidationError(errs, "name", "is required")
 	}
 	if strings.TrimSpace(p.DefaultCurrency) == "" {
-		errs = AppendValidationError(errs, "default_currency", "is required")
+		errs = sharederrors.AppendValidationError(errs, "default_currency", "is required")
 	}
 	if p.TaxRate < 0 {
-		errs = AppendValidationError(errs, "tax_rate", "must be greater than or equal to 0")
+		errs = sharederrors.AppendValidationError(errs, "tax_rate", "must be greater than or equal to 0")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -91,12 +93,12 @@ type CreateBranchParams struct {
 }
 
 func (p CreateBranchParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if _, err := uuid.Parse(strings.TrimSpace(p.SalonID)); err != nil {
-		errs = AppendValidationError(errs, "salon_id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "salon_id", "must be a valid UUID")
 	}
 	if strings.TrimSpace(p.Name) == "" {
-		errs = AppendValidationError(errs, "name", "is required")
+		errs = sharederrors.AppendValidationError(errs, "name", "is required")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -117,15 +119,15 @@ type UpdateBranchParams struct {
 }
 
 func (p UpdateBranchParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if _, err := uuid.Parse(strings.TrimSpace(p.ID)); err != nil {
-		errs = AppendValidationError(errs, "id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "id", "must be a valid UUID")
 	}
 	if _, err := uuid.Parse(strings.TrimSpace(p.SalonID)); err != nil {
-		errs = AppendValidationError(errs, "salon_id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "salon_id", "must be a valid UUID")
 	}
 	if strings.TrimSpace(p.Name) == "" {
-		errs = AppendValidationError(errs, "name", "is required")
+		errs = sharederrors.AppendValidationError(errs, "name", "is required")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -140,12 +142,12 @@ type CreateCategoryParams struct {
 }
 
 func (p CreateCategoryParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if _, err := uuid.Parse(strings.TrimSpace(p.SalonID)); err != nil {
-		errs = AppendValidationError(errs, "salon_id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "salon_id", "must be a valid UUID")
 	}
 	if strings.TrimSpace(p.Name) == "" {
-		errs = AppendValidationError(errs, "name", "is required")
+		errs = sharederrors.AppendValidationError(errs, "name", "is required")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -161,15 +163,15 @@ type UpdateCategoryParams struct {
 }
 
 func (p UpdateCategoryParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if _, err := uuid.Parse(strings.TrimSpace(p.ID)); err != nil {
-		errs = AppendValidationError(errs, "id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "id", "must be a valid UUID")
 	}
 	if _, err := uuid.Parse(strings.TrimSpace(p.SalonID)); err != nil {
-		errs = AppendValidationError(errs, "salon_id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "salon_id", "must be a valid UUID")
 	}
 	if strings.TrimSpace(p.Name) == "" {
-		errs = AppendValidationError(errs, "name", "is required")
+		errs = sharederrors.AppendValidationError(errs, "name", "is required")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -189,24 +191,24 @@ type CreateServiceParams struct {
 }
 
 func (p CreateServiceParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if _, err := uuid.Parse(strings.TrimSpace(p.SalonID)); err != nil {
-		errs = AppendValidationError(errs, "salon_id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "salon_id", "must be a valid UUID")
 	}
 	if _, err := uuid.Parse(strings.TrimSpace(p.CategoryID)); err != nil {
-		errs = AppendValidationError(errs, "category_id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "category_id", "must be a valid UUID")
 	}
 	if strings.TrimSpace(p.Name) == "" {
-		errs = AppendValidationError(errs, "name", "is required")
+		errs = sharederrors.AppendValidationError(errs, "name", "is required")
 	}
 	if p.DurationMinutes <= 0 {
-		errs = AppendValidationError(errs, "duration_minutes", "must be greater than 0")
+		errs = sharederrors.AppendValidationError(errs, "duration_minutes", "must be greater than 0")
 	}
 	if p.Price < 0 {
-		errs = AppendValidationError(errs, "price", "must be greater than or equal to 0")
+		errs = sharederrors.AppendValidationError(errs, "price", "must be greater than or equal to 0")
 	}
 	if !isValidServiceStatus(p.Status) {
-		errs = AppendValidationError(errs, "status", "must be 'active' or 'inactive'")
+		errs = sharederrors.AppendValidationError(errs, "status", "must be 'active' or 'inactive'")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -227,27 +229,27 @@ type UpdateServiceParams struct {
 }
 
 func (p UpdateServiceParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if _, err := uuid.Parse(strings.TrimSpace(p.ID)); err != nil {
-		errs = AppendValidationError(errs, "id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "id", "must be a valid UUID")
 	}
 	if _, err := uuid.Parse(strings.TrimSpace(p.SalonID)); err != nil {
-		errs = AppendValidationError(errs, "salon_id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "salon_id", "must be a valid UUID")
 	}
 	if _, err := uuid.Parse(strings.TrimSpace(p.CategoryID)); err != nil {
-		errs = AppendValidationError(errs, "category_id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "category_id", "must be a valid UUID")
 	}
 	if strings.TrimSpace(p.Name) == "" {
-		errs = AppendValidationError(errs, "name", "is required")
+		errs = sharederrors.AppendValidationError(errs, "name", "is required")
 	}
 	if p.DurationMinutes <= 0 {
-		errs = AppendValidationError(errs, "duration_minutes", "must be greater than 0")
+		errs = sharederrors.AppendValidationError(errs, "duration_minutes", "must be greater than 0")
 	}
 	if p.Price < 0 {
-		errs = AppendValidationError(errs, "price", "must be greater than or equal to 0")
+		errs = sharederrors.AppendValidationError(errs, "price", "must be greater than or equal to 0")
 	}
 	if !isValidServiceStatus(p.Status) {
-		errs = AppendValidationError(errs, "status", "must be 'active' or 'inactive'")
+		errs = sharederrors.AppendValidationError(errs, "status", "must be 'active' or 'inactive'")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -268,21 +270,21 @@ type CreateStaffParams struct {
 }
 
 func (p CreateStaffParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if _, err := uuid.Parse(strings.TrimSpace(p.SalonID)); err != nil {
-		errs = AppendValidationError(errs, "salon_id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "salon_id", "must be a valid UUID")
 	}
 	if strings.TrimSpace(p.Name) == "" {
-		errs = AppendValidationError(errs, "name", "is required")
+		errs = sharederrors.AppendValidationError(errs, "name", "is required")
 	}
 	if strings.TrimSpace(p.PhoneNumber) == "" {
-		errs = AppendValidationError(errs, "phone_number", "is required")
+		errs = sharederrors.AppendValidationError(errs, "phone_number", "is required")
 	}
 	if p.Email != nil && strings.TrimSpace(*p.Email) == "" {
-		errs = AppendValidationError(errs, "email", "must not be empty if provided")
+		errs = sharederrors.AppendValidationError(errs, "email", "must not be empty if provided")
 	}
 	if !isValidStaffStatus(p.Status) {
-		errs = AppendValidationError(errs, "status", "must be 'active' or 'inactive'")
+		errs = sharederrors.AppendValidationError(errs, "status", "must be 'active' or 'inactive'")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -304,24 +306,24 @@ type UpdateStaffParams struct {
 }
 
 func (p UpdateStaffParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if _, err := uuid.Parse(strings.TrimSpace(p.ID)); err != nil {
-		errs = AppendValidationError(errs, "id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "id", "must be a valid UUID")
 	}
 	if _, err := uuid.Parse(strings.TrimSpace(p.SalonID)); err != nil {
-		errs = AppendValidationError(errs, "salon_id", "must be a valid UUID")
+		errs = sharederrors.AppendValidationError(errs, "salon_id", "must be a valid UUID")
 	}
 	if strings.TrimSpace(p.Name) == "" {
-		errs = AppendValidationError(errs, "name", "is required")
+		errs = sharederrors.AppendValidationError(errs, "name", "is required")
 	}
 	if strings.TrimSpace(p.PhoneNumber) == "" {
-		errs = AppendValidationError(errs, "phone_number", "is required")
+		errs = sharederrors.AppendValidationError(errs, "phone_number", "is required")
 	}
 	if p.Email != nil && strings.TrimSpace(*p.Email) == "" {
-		errs = AppendValidationError(errs, "email", "must not be empty if provided")
+		errs = sharederrors.AppendValidationError(errs, "email", "must not be empty if provided")
 	}
 	if !isValidStaffStatus(p.Status) {
-		errs = AppendValidationError(errs, "status", "must be 'active' or 'inactive'")
+		errs = sharederrors.AppendValidationError(errs, "status", "must be 'active' or 'inactive'")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -334,9 +336,9 @@ type RequestStaffOTPParams struct {
 }
 
 func (p RequestStaffOTPParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if strings.TrimSpace(p.PhoneNumber) == "" {
-		errs = AppendValidationError(errs, "phone_number", "is required")
+		errs = sharederrors.AppendValidationError(errs, "phone_number", "is required")
 	}
 	if len(errs) > 0 {
 		return errs
@@ -350,12 +352,12 @@ type AuthenticateStaffParams struct {
 }
 
 func (p AuthenticateStaffParams) Validate() error {
-	var errs ValidationErrors
+	var errs sharederrors.ValidationErrors
 	if strings.TrimSpace(p.PhoneNumber) == "" {
-		errs = AppendValidationError(errs, "phone_number", "is required")
+		errs = sharederrors.AppendValidationError(errs, "phone_number", "is required")
 	}
 	if strings.TrimSpace(p.OTP) == "" {
-		errs = AppendValidationError(errs, "otp", "is required")
+		errs = sharederrors.AppendValidationError(errs, "otp", "is required")
 	}
 	if len(errs) > 0 {
 		return errs

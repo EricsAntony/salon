@@ -15,7 +15,6 @@ import (
 
 	"user-service/internal/api"
 	"user-service/internal/cleanup"
-	custommiddleware "user-service/internal/middleware"
 	"user-service/internal/repository"
 	"user-service/internal/service"
 	"user-service/internal/tracing"
@@ -73,7 +72,6 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(api.RequestLogger)
-	r.Use(custommiddleware.MetricsMiddleware) // Add metrics middleware
 	r.Use(middleware.Recoverer)
 
 	// Add Prometheus metrics endpoint

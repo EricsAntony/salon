@@ -2,13 +2,15 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	sharedAuth "github.com/EricsAntony/salon/salon-shared/auth"
 	sharedConfig "github.com/EricsAntony/salon/salon-shared/config"
+	sharedErrors "github.com/EricsAntony/salon/salon-shared/errors"
 	"github.com/EricsAntony/salon/salon-shared/logger"
+	sharedMiddleware "github.com/EricsAntony/salon/salon-shared/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/rs/zerolog/log"
@@ -18,15 +20,22 @@ import (
 )
 
 type Handler struct {
-	svc service.SalonService
-	jwt *sharedAuth.JWTManager
+	svc         service.SalonService
+	jwt         *sharedAuth.JWTManager
+	store       *repository.Store
+	rateLimiter *sharedMiddleware.RateLimiter
 }
 
-func NewHandler(cfg *sharedConfig.Config, svc service.SalonService) *Handler {
+func NewHandler(cfg *sharedConfig.Config, svc service.SalonService, store *repository.Store) *Handler {
 	logger.Init(cfg)
+	// Create rate limiter: 5 OTP requests per 15 minutes per IP
+	rateLimiter := sharedMiddleware.NewRateLimiter(5, 15*time.Minute)
+	
 	return &Handler{
-		svc: svc,
-		jwt: sharedAuth.NewJWTManager(cfg),
+		svc:         svc,
+		jwt:         sharedAuth.NewJWTManager(cfg),
+		store:       store,
+		rateLimiter: rateLimiter,
 	}
 }
 
@@ -36,19 +45,27 @@ func (h *Handler) Routes() *chi.Mux {
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Logger)
+	
+	// Use shared audit middleware with salon-service configuration
+	auditConfig := sharedMiddleware.DefaultAuditConfig("salon-service")
+	r.Use(sharedMiddleware.AuditMiddleware(auditConfig))
 
 	r.Get("/health", h.health)
 	r.Get("/ready", h.ready)
 
 	r.Group(func(r chi.Router) {
-		r.Post("/staff/otp", h.requestStaffOTP)
+		// Apply rate limiting to OTP endpoint
+		r.With(sharedMiddleware.OTPRateLimitMiddleware(h.rateLimiter)).Post("/staff/otp", h.requestStaffOTP)
 		r.Post("/staff/auth", h.authenticateStaff)
 		r.Post("/staff/refresh", h.refreshStaffSession)
 	})
 
 	r.Group(func(r chi.Router) {
-		r.Use(h.jwt.Middleware())
+		// Use salon-specific middleware for protected routes
+		r.Use(sharedMiddleware.SalonUserMiddleware(h.jwt))
 		r.Route("/salons", func(r chi.Router) {
+			// Apply salon-scoped authorization
+			r.Use(sharedMiddleware.SalonScopedMiddleware(h.store))
 			r.Post("/", h.createSalon)
 			r.Get("/", h.listSalons)
 			r.Route("/{salonID}", func(r chi.Router) {
@@ -508,24 +525,6 @@ func writeError(w http.ResponseWriter, status int, message string) {
 }
 
 func handleServiceError(w http.ResponseWriter, err error) {
-	switch e := err.(type) {
-	case service.ValidationErrors:
-		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"success": false,
-			"error": map[string]any{
-				"code":    http.StatusBadRequest,
-				"type":    "validation_error",
-				"message": "validation failed",
-				"details": e,
-			},
-		})
-	case service.ConflictError:
-		writeError(w, http.StatusConflict, e.Error())
-	default:
-		if errors.Is(err, repository.ErrNotFound) {
-			writeError(w, http.StatusNotFound, err.Error())
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "internal error")
-	}
+	// Use shared error handling
+	sharedErrors.WriteAPIError(w, err)
 }

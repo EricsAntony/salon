@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"strings"
@@ -11,7 +10,10 @@ import (
 	"salon-service/internal/model"
 	"salon-service/internal/repository"
 
+	sharedauth "github.com/EricsAntony/salon/salon-shared/auth"
 	sharedconfig "github.com/EricsAntony/salon/salon-shared/config"
+	sharederrors "github.com/EricsAntony/salon/salon-shared/errors"
+	sharedvalidation "github.com/EricsAntony/salon/salon-shared/validation"
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -63,6 +65,8 @@ type salonService struct {
 type JWTIssuer interface {
 	GenerateAccessToken(userID string) (string, time.Time, error)
 	GenerateRefreshToken(userID string) (string, time.Time, error)
+	GenerateAccessTokenWithType(userID, userType string) (string, time.Time, error)
+	GenerateRefreshTokenWithType(userID, userType string) (string, time.Time, error)
 }
 
 func New(repo *repository.Store, authRepo repository.StaffAuthRepository, cfg *sharedconfig.Config, jwt JWTIssuer) SalonService {
@@ -105,6 +109,7 @@ func (s *salonService) GetSalon(ctx context.Context, id string) (*model.Salon, e
 	}
 	return s.repo.GetSalon(ctx, id)
 }
+
 
 func (s *salonService) ListSalons(ctx context.Context) ([]*model.Salon, error) {
 	return s.repo.ListSalons(ctx)
@@ -309,10 +314,12 @@ func (s *salonService) CreateStaff(ctx context.Context, params CreateStaffParams
 	if err := params.Validate(); err != nil {
 		return nil, err
 	}
-	params.PhoneNumber = normalizePhone(params.PhoneNumber)
-	if params.PhoneNumber == "" {
-		return nil, ValidationErrors{{Field: "phone_number", Message: "invalid"}}
+	// Use shared phone validation and normalization
+	normalizedPhone, err := sharedvalidation.ValidatePhone(params.PhoneNumber)
+	if err != nil {
+		return nil, err
 	}
+	params.PhoneNumber = normalizedPhone
 	staff := &model.Staff{
 		ID:             uuid.NewString(),
 		SalonID:        params.SalonID,
@@ -328,7 +335,7 @@ func (s *salonService) CreateStaff(ctx context.Context, params CreateStaffParams
 	created, err := s.repo.CreateStaff(ctx, staff)
 	if err != nil {
 		if repository.IsUniqueViolation(err) {
-			return nil, ValidationErrors{{Field: "phone_number", Message: "already registered"}}
+			return nil, sharederrors.NewValidationError("phone_number", "already registered")
 		}
 		return nil, err
 	}
@@ -346,10 +353,12 @@ func (s *salonService) UpdateStaff(ctx context.Context, params UpdateStaffParams
 	if err := params.Validate(); err != nil {
 		return nil, err
 	}
-	params.PhoneNumber = normalizePhone(params.PhoneNumber)
-	if params.PhoneNumber == "" {
-		return nil, ValidationErrors{{Field: "phone_number", Message: "invalid"}}
+	// Use shared phone validation and normalization
+	normalizedPhone, err := sharedvalidation.ValidatePhone(params.PhoneNumber)
+	if err != nil {
+		return nil, err
 	}
+	params.PhoneNumber = normalizedPhone
 	staff := &model.Staff{
 		ID:             params.ID,
 		SalonID:        params.SalonID,
@@ -365,7 +374,7 @@ func (s *salonService) UpdateStaff(ctx context.Context, params UpdateStaffParams
 	updated, err := s.repo.UpdateStaff(ctx, staff)
 	if err != nil {
 		if repository.IsUniqueViolation(err) {
-			return nil, ValidationErrors{{Field: "phone_number", Message: "already registered"}}
+			return nil, sharederrors.NewValidationError("phone_number", "already registered")
 		}
 		return nil, err
 	}
@@ -405,14 +414,13 @@ func (s *salonService) ListStaffServices(ctx context.Context, staffID string) ([
 }
 
 func (s *salonService) RequestStaffOTP(ctx context.Context, params RequestStaffOTPParams) error {
-	if err := params.Validate(); err != nil {
+	// Use shared phone validation and normalization
+	phone, err := sharedvalidation.ValidatePhone(params.PhoneNumber)
+	if err != nil {
 		return err
 	}
-	phone := normalizePhone(params.PhoneNumber)
-	if phone == "" {
-		return ValidationErrors{{Field: "phone_number", Message: "invalid"}}
-	}
 
+	// Check if staff exists with this phone number
 	staff, err := s.repo.GetStaffByPhone(ctx, phone)
 	if err != nil {
 		return err
@@ -421,18 +429,20 @@ func (s *salonService) RequestStaffOTP(ctx context.Context, params RequestStaffO
 		return ErrStaffNotFound
 	}
 
-	code, err := generateOTPCode()
+	// Generate OTP using shared utility
+	otpCode, err := sharedvalidation.GenerateOTP()
 	if err != nil {
-		return err
-	}
-	codeHash, err := bcrypt.GenerateFromPassword([]byte(code), bcrypt.DefaultCost)
-	if err != nil {
-		return fmt.Errorf("hash otp: %w", err)
+		return fmt.Errorf("generate OTP: %w", err)
 	}
 
-	if err := s.authRepo.CreateOTP(ctx, phone, string(codeHash), time.Now().Add(s.otpExpiry)); err != nil {
-		return err
+	// Store OTP with expiry
+	expiry := time.Now().Add(s.otpExpiry)
+	if err := s.authRepo.CreateOTP(ctx, staff.ID, otpCode, expiry); err != nil {
+		return fmt.Errorf("store OTP: %w", err)
 	}
+
+	// Use shared OTP sending utility
+	sharedauth.SendOTPViaSMS(phone, otpCode)
 
 	return nil
 }
@@ -454,9 +464,10 @@ func (s *salonService) AuthenticateStaff(ctx context.Context, params Authenticat
 	if err := params.Validate(); err != nil {
 		return nil, err
 	}
-	phone := normalizePhone(params.PhoneNumber)
-	if phone == "" {
-		return nil, ValidationErrors{{Field: "phone_number", Message: "invalid"}}
+	// Use shared phone validation and normalization
+	phone, err := sharedvalidation.ValidatePhone(params.PhoneNumber)
+	if err != nil {
+		return nil, err
 	}
 
 	staff, err := s.repo.GetStaffByPhone(ctx, phone)
@@ -510,11 +521,11 @@ func (s *salonService) RefreshStaffSession(ctx context.Context, staffID, refresh
 }
 
 func (s *salonService) issueTokens(ctx context.Context, staff *model.Staff) (*AuthenticateStaffResult, error) {
-	accessToken, _, err := s.jwt.GenerateAccessToken(staff.ID)
+	accessToken, _, err := s.jwt.GenerateAccessTokenWithType(staff.ID, sharedauth.UserTypeSalon)
 	if err != nil {
 		return nil, err
 	}
-	refreshToken, refreshExpiry, err := s.jwt.GenerateRefreshToken(staff.ID)
+	refreshToken, refreshExpiry, err := s.jwt.GenerateRefreshTokenWithType(staff.ID, sharedauth.UserTypeSalon)
 	if err != nil {
 		return nil, err
 	}
@@ -533,34 +544,6 @@ func (s *salonService) issueTokens(ctx context.Context, staff *model.Staff) (*Au
 	}, nil
 }
 
-func generateOTPCode() (string, error) {
-	buf := make([]byte, 4)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%06d", int(buf[0])%1000000), nil
-}
-
-func normalizePhone(phone string) string {
-	replacer := strings.NewReplacer(" ", "", "-", "", "(", "", ")", "")
-	phone = replacer.Replace(strings.TrimSpace(phone))
-	if phone == "" {
-		return ""
-	}
-	if strings.HasPrefix(phone, "+") {
-		return phone
-	}
-	if len(phone) == 10 {
-		return "+91" + phone
-	}
-	if strings.HasPrefix(phone, "0") && len(phone) == 11 {
-		return "+91" + phone[1:]
-	}
-	if strings.HasPrefix(phone, "91") && len(phone) == 12 {
-		return "+" + phone
-	}
-	return phone
-}
 
 func (s *salonService) HealthCheck(ctx context.Context) error {
 	return s.repo.HealthCheck(ctx)
@@ -568,10 +551,10 @@ func (s *salonService) HealthCheck(ctx context.Context) error {
 
 func validateUUID(field, value string) error {
 	if strings.TrimSpace(value) == "" {
-		return ValidationErrors{{Field: field, Message: "must not be empty"}}
+		return sharederrors.NewValidationError(field, "must not be empty")
 	}
 	if _, err := uuid.Parse(value); err != nil {
-		return ValidationErrors{{Field: field, Message: "must be a valid UUID"}}
+		return sharederrors.NewValidationError(field, "must be a valid UUID")
 	}
 	return nil
 }

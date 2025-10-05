@@ -903,3 +903,20 @@ func (s *Store) HealthCheck(ctx context.Context) error {
 	defer cancel()
 	return s.db.Ping(ctx)
 }
+
+// StaffHasAccessToSalon checks if a staff member has access to a specific salon
+func (s *Store) StaffHasAccessToSalon(ctx context.Context, staffID, salonID string) (bool, error) {
+	var exists bool
+	err := s.db.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1 FROM staff 
+			WHERE id = $1 AND salon_id = $2 AND status = 'active'
+		)
+	`, staffID, salonID).Scan(&exists)
+	
+	if err != nil {
+		return false, err
+	}
+	
+	return exists, nil
+}

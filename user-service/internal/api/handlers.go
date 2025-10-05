@@ -17,26 +17,39 @@ import (
 
 	"github.com/EricsAntony/salon/salon-shared/auth"
 	"github.com/EricsAntony/salon/salon-shared/config"
+	sharedMiddleware "github.com/EricsAntony/salon/salon-shared/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/httprate"
 	"github.com/rs/zerolog/log"
 )
 
 type Handler struct {
-	svc service.UserService
-	jwt *auth.JWTManager
-	cfg *config.Config
+	svc         service.UserService
+	jwt         *auth.JWTManager
+	cfg         *config.Config
+	rateLimiter *sharedMiddleware.RateLimiter
 }
 
 func NewHandler(svc service.UserService, jwt *auth.JWTManager, cfg *config.Config) *Handler {
-	return &Handler{svc: svc, jwt: jwt, cfg: cfg}
+	// Create rate limiter: 3 OTP requests per 10 minutes per IP
+	rateLimiter := sharedMiddleware.NewRateLimiter(3, 10*time.Minute)
+	
+	return &Handler{
+		svc:         svc,
+		jwt:         jwt,
+		cfg:         cfg,
+		rateLimiter: rateLimiter,
+	}
 }
 
 func (h *Handler) RegisterRoutes(r *chi.Mux) {
+	// Add shared audit middleware with user-service configuration
+	auditConfig := sharedMiddleware.DefaultAuditConfig("user-service")
+	r.Use(sharedMiddleware.AuditMiddleware(auditConfig))
+	
 	r.Group(func(r chi.Router) {
-		// OTP request with rate limit per IP
-		r.With(httprate.LimitByIP(h.cfg.RateLimit.OTPRequestsPerMinute, time.Minute)).Post("/otp/request", h.requestOTP)
+		// OTP request with enhanced rate limiting
+		r.With(sharedMiddleware.OTPRateLimitMiddleware(h.rateLimiter)).Post("/otp/request", h.requestOTP)
 	})
 
 	r.Post("/user/register", h.register)
@@ -48,14 +61,18 @@ func (h *Handler) RegisterRoutes(r *chi.Mux) {
 	r.Get("/ready", h.readiness)
 
 	r.Group(func(r chi.Router) {
-		// Use shared JWT middleware for protected routes
-		r.Use(h.jwt.Middleware())
+		// Use customer-specific middleware for protected routes
+		r.Use(sharedMiddleware.CustomerMiddleware(h.jwt))
 		// Enforce CSRF on unsafe methods for protected routes
 		r.Use(RequireCSRF)
-		r.Get("/user/{id}", h.getUser)
+		
+		// User-scoped routes - users can only access their own data
+		r.With(sharedMiddleware.UserScopedMiddleware()).Get("/user/{id}", h.getUser)
+		r.With(sharedMiddleware.UserScopedMiddleware()).Put("/users/{id}", h.updateUser)
+		r.With(sharedMiddleware.UserScopedMiddleware()).Delete("/users/{id}", h.deleteUser)
+		
+		// Auth operations (no user scoping needed)
 		r.Post("/auth/revoke", h.revoke)
-		r.Put("/users/{id}", h.updateUser)
-		r.Delete("/users/{id}", h.deleteUser)
 	})
 }
 
@@ -198,8 +215,8 @@ func (h *Handler) updateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	uid, _ := r.Context().Value(auth.CtxUserID).(string)
-	if uid == "" || uid != targetID {
-		writeErr(w, http.StatusForbidden, "forbidden")
+	if uid == "" {
+		writeErr(w, http.StatusUnauthorized, "unauthorized")
 		return
 	}
 	var req interfaces.UpdateReq
