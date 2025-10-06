@@ -466,3 +466,125 @@ func (h *Handlers) validateRescheduleBookingRequest(request *service.RescheduleB
 
 	return nil
 }
+
+
+// Payment-related handlers
+
+// InitiatePayment initiates payment for a booking
+func (h *Handlers) InitiatePayment(w http.ResponseWriter, r *http.Request) {
+	bookingIDStr := chi.URLParam(r, "bookingId")
+	bookingID, err := uuid.Parse(bookingIDStr)
+	if err != nil {
+		errors.WriteAPIError(w, errors.NewValidationError("booking_id", "invalid booking ID format"))
+		return
+	}
+
+	var request struct {
+		Gateway string `json:"gateway"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		errors.WriteAPIError(w, errors.NewValidationError("request_body", "invalid JSON format"))
+		return
+	}
+
+	// Validate gateway
+	if request.Gateway == "" {
+		request.Gateway = "stripe" // Default gateway
+	}
+
+	// Initiate payment
+	paymentResponse, err := h.bookingService.InitiatePaymentForBooking(r.Context(), bookingID, request.Gateway)
+	if err != nil {
+		log.Error().Err(err).Str("booking_id", bookingID.String()).Msg("Failed to initiate payment")
+		errors.WriteAPIError(w, &errors.ConflictError{Resource: "payment", Detail: err.Error()})
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, paymentResponse)
+}
+
+// ProcessPaymentCallback handles payment gateway callbacks
+func (h *Handlers) ProcessPaymentCallback(w http.ResponseWriter, r *http.Request) {
+	bookingIDStr := chi.URLParam(r, "bookingId")
+	bookingID, err := uuid.Parse(bookingIDStr)
+	if err != nil {
+		errors.WriteAPIError(w, errors.NewValidationError("booking_id", "invalid booking ID format"))
+		return
+	}
+
+	var request struct {
+		PaymentID        string `json:"payment_id"`
+		GatewayPaymentID string `json:"gateway_payment_id"`
+		Status           string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		errors.WriteAPIError(w, errors.NewValidationError("request_body", "invalid JSON format"))
+		return
+	}
+
+	// Validate required fields
+	if request.PaymentID == "" {
+		errors.WriteAPIError(w, errors.NewValidationError("payment_id", "payment_id is required"))
+		return
+	}
+
+	if request.GatewayPaymentID == "" {
+		errors.WriteAPIError(w, errors.NewValidationError("gateway_payment_id", "gateway_payment_id is required"))
+		return
+	}
+
+	// Parse payment ID
+	paymentID, err := uuid.Parse(request.PaymentID)
+	if err != nil {
+		errors.WriteAPIError(w, errors.NewValidationError("payment_id", "invalid payment ID format"))
+		return
+	}
+
+	// Process payment callback
+	if err := h.bookingService.ProcessPaymentCallback(r.Context(), bookingID, paymentID, request.GatewayPaymentID); err != nil {
+		log.Error().Err(err).Str("booking_id", bookingID.String()).Str("payment_id", request.PaymentID).Msg("Failed to process payment callback")
+		errors.WriteAPIError(w, &errors.ConflictError{Resource: "payment_callback", Detail: err.Error()})
+		return
+	}
+
+	response := map[string]interface{}{
+		"status":  "success",
+		"message": "Payment callback processed successfully",
+	}
+	utils.WriteJSON(w, http.StatusOK, response)
+}
+
+// RefundPayment initiates a refund for a booking payment
+func (h *Handlers) RefundPayment(w http.ResponseWriter, r *http.Request) {
+	bookingIDStr := chi.URLParam(r, "bookingId")
+	bookingID, err := uuid.Parse(bookingIDStr)
+	if err != nil {
+		errors.WriteAPIError(w, errors.NewValidationError("booking_id", "invalid booking ID format"))
+		return
+	}
+
+	var request struct {
+		Amount *float64 `json:"amount,omitempty"`
+		Reason string   `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		errors.WriteAPIError(w, errors.NewValidationError("request_body", "invalid JSON format"))
+		return
+	}
+
+	// Validate reason
+	if request.Reason == "" {
+		errors.WriteAPIError(w, errors.NewValidationError("reason", "reason is required"))
+		return
+	}
+
+	// Initiate refund
+	refundResponse, err := h.bookingService.RefundBookingPayment(r.Context(), bookingID, request.Reason, request.Amount)
+	if err != nil {
+		log.Error().Err(err).Str("booking_id", bookingID.String()).Msg("Failed to initiate refund")
+		errors.WriteAPIError(w, &errors.ConflictError{Resource: "refund", Detail: err.Error()})
+		return
+	}
+
+	utils.WriteJSON(w, http.StatusCreated, refundResponse)
+}

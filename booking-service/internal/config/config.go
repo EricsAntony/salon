@@ -18,8 +18,10 @@ type Config struct {
 	JWTRefreshSecret string `mapstructure:"jwt_refresh_secret"`
 	
 	// External service URLs
-	UserServiceURL  string `mapstructure:"user_service_url"`
-	SalonServiceURL string `mapstructure:"salon_service_url"`
+	UserServiceURL         string `mapstructure:"user_service_url"`
+	SalonServiceURL        string `mapstructure:"salon_service_url"`
+	PaymentServiceURL      string `mapstructure:"payment_service_url"`
+	NotificationServiceURL string `mapstructure:"notification_service_url"`
 	
 	// Default configuration values
 	DefaultBufferTimeMinutes       int     `mapstructure:"default_buffer_time_minutes"`
@@ -75,6 +77,8 @@ func setDefaults() {
 	viper.SetDefault("port", 8082)
 	viper.SetDefault("user_service_url", "http://localhost:8080")
 	viper.SetDefault("salon_service_url", "http://localhost:8081")
+	viper.SetDefault("payment_service_url", "http://localhost:8082")
+	viper.SetDefault("notification_service_url", "http://localhost:8084")
 	
 	// Default booking configuration
 	viper.SetDefault("default_buffer_time_minutes", 15)
@@ -114,6 +118,14 @@ func overrideWithEnv(config *Config) {
 	
 	if url := os.Getenv("SALON_SERVICE_URL"); url != "" {
 		config.SalonServiceURL = url
+	}
+	
+	if url := os.Getenv("PAYMENT_SERVICE_URL"); url != "" {
+		config.PaymentServiceURL = url
+	}
+	
+	if url := os.Getenv("NOTIFICATION_SERVICE_URL"); url != "" {
+		config.NotificationServiceURL = url
 	}
 }
 

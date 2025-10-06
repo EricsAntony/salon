@@ -26,6 +26,11 @@ type BookingService interface {
 	GetBooking(ctx context.Context, bookingID uuid.UUID) (*model.Booking, error)
 	GetUserBookings(ctx context.Context, userID uuid.UUID, limit, offset int) ([]*model.Booking, error)
 	
+	// Payment integration
+	InitiatePaymentForBooking(ctx context.Context, bookingID uuid.UUID, gateway string) (*InitiatePaymentResponse, error)
+	ProcessPaymentCallback(ctx context.Context, bookingID uuid.UUID, paymentID uuid.UUID, gatewayPaymentID string) error
+	RefundBookingPayment(ctx context.Context, bookingID uuid.UUID, reason string, amount *float64) (*RefundPaymentResponse, error)
+	
 	// Availability and pricing
 	GetStylistAvailability(ctx context.Context, salonID, stylistID uuid.UUID, date time.Time) ([]*model.TimeSlot, error)
 	CalculateBookingSummary(ctx context.Context, request *BookingSummaryRequest) (*model.BookingSummary, error)
@@ -35,19 +40,25 @@ type BookingService interface {
 }
 
 type bookingService struct {
-	repo            repository.BookingRepository
-	externalService ExternalService
-	config          *config.Config
+	repo               repository.BookingRepository
+	externalService    ExternalService
+	paymentClient      *PaymentClient
+	notificationClient *NotificationClient
+	config             *config.Config
 }
 
 // NewBookingService creates a new booking service
 func NewBookingService(repo repository.BookingRepository, cfg *config.Config) BookingService {
 	externalService := NewExternalService(cfg.UserServiceURL, cfg.SalonServiceURL)
+	paymentClient := NewPaymentClient(cfg.PaymentServiceURL)
+	notificationClient := NewNotificationClient(cfg.NotificationServiceURL)
 	
 	return &bookingService{
-		repo:            repo,
-		externalService: externalService,
-		config:          cfg,
+		repo:               repo,
+		externalService:    externalService,
+		paymentClient:      paymentClient,
+		notificationClient: notificationClient,
+		config:             cfg,
 	}
 }
 
@@ -208,6 +219,136 @@ func (s *bookingService) InitiateBooking(ctx context.Context, request *InitiateB
 	return booking, nil
 }
 
+// InitiatePaymentForBooking initiates payment for a booking
+func (s *bookingService) InitiatePaymentForBooking(ctx context.Context, bookingID uuid.UUID, gateway string) (*InitiatePaymentResponse, error) {
+	// Get booking
+	booking, err := s.repo.GetByID(ctx, bookingID)
+	if err != nil {
+		return nil, fmt.Errorf("booking not found: %w", err)
+	}
+
+	// Validate booking status
+	if booking.Status != model.BookingStatusInitiated {
+		return nil, fmt.Errorf("payment can only be initiated for bookings in initiated status, current status: %s", booking.Status)
+	}
+
+	// Validate user exists
+	_, err = s.externalService.ValidateUser(ctx, booking.UserID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user details: %w", err)
+	}
+
+	// Generate idempotency key
+	idempotencyKey := fmt.Sprintf("booking-%s-%d", bookingID.String(), time.Now().Unix())
+
+	// Prepare payment request
+	paymentRequest := &InitiatePaymentRequest{
+		BookingID:      bookingID,
+		UserID:         booking.UserID,
+		Amount:         booking.TotalAmount,
+		Currency:       "INR", // Default currency
+		IdempotencyKey: idempotencyKey,
+		Description:    fmt.Sprintf("Payment for booking %s", bookingID.String()),
+		Gateway:        gateway,
+	}
+
+	// Initiate payment
+	paymentResponse, err := s.paymentClient.InitiatePayment(ctx, paymentRequest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initiate payment: %w", err)
+	}
+
+	log.Info().
+		Str("booking_id", bookingID.String()).
+		Str("payment_id", paymentResponse.PaymentID.String()).
+		Str("gateway", gateway).
+		Float64("amount", booking.TotalAmount).
+		Msg("Payment initiated for booking")
+
+	return paymentResponse, nil
+}
+
+// ProcessPaymentCallback processes payment callback and confirms booking
+func (s *bookingService) ProcessPaymentCallback(ctx context.Context, bookingID uuid.UUID, paymentID uuid.UUID, gatewayPaymentID string) error {
+	// Confirm payment
+	confirmRequest := &ConfirmPaymentRequest{
+		PaymentID:        paymentID,
+		GatewayPaymentID: gatewayPaymentID,
+	}
+
+	_, err := s.paymentClient.ConfirmPayment(ctx, confirmRequest)
+	if err != nil {
+		return fmt.Errorf("failed to confirm payment: %w", err)
+	}
+
+	// Confirm booking
+	confirmedBooking, err := s.ConfirmBooking(ctx, bookingID, paymentID.String())
+	if err != nil {
+		return fmt.Errorf("failed to confirm booking: %w", err)
+	}
+
+	// Send confirmation notifications
+	go s.sendBookingConfirmationNotifications(ctx, confirmedBooking)
+
+	log.Info().
+		Str("booking_id", bookingID.String()).
+		Str("payment_id", paymentID.String()).
+		Msg("Payment callback processed and booking confirmed")
+
+	return nil
+}
+
+// RefundBookingPayment initiates a refund for a booking payment
+func (s *bookingService) RefundBookingPayment(ctx context.Context, bookingID uuid.UUID, reason string, amount *float64) (*RefundPaymentResponse, error) {
+	// Get booking
+	booking, err := s.repo.GetByID(ctx, bookingID)
+	if err != nil {
+		return nil, fmt.Errorf("booking not found: %w", err)
+	}
+
+	// Validate booking has payment
+	if booking.PaymentID == nil {
+		return nil, fmt.Errorf("booking has no associated payment")
+	}
+
+	// Parse payment ID
+	paymentID, err := uuid.Parse(*booking.PaymentID)
+	if err != nil {
+		return nil, fmt.Errorf("invalid payment ID: %w", err)
+	}
+
+	// Generate idempotency key for refund
+	idempotencyKey := fmt.Sprintf("refund-%s-%d", bookingID.String(), time.Now().Unix())
+
+	// Prepare refund request
+	refundRequest := &RefundPaymentRequest{
+		PaymentID:      paymentID,
+		Amount:         amount, // nil for full refund
+		Reason:         reason,
+		IdempotencyKey: idempotencyKey,
+	}
+
+	// Initiate refund
+	refundResponse, err := s.paymentClient.RefundPayment(ctx, refundRequest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initiate refund: %w", err)
+	}
+
+	// Update booking payment status
+	booking.PaymentStatus = model.PaymentStatusRefunded
+	if err := s.repo.Update(ctx, booking); err != nil {
+		log.Error().Err(err).Msg("Failed to update booking payment status after refund")
+	}
+
+	log.Info().
+		Str("booking_id", bookingID.String()).
+		Str("refund_id", refundResponse.RefundID.String()).
+		Float64("amount", refundResponse.Amount).
+		Msg("Refund initiated for booking")
+
+	return refundResponse, nil
+}
+
 // ConfirmBooking confirms a booking after successful payment
 func (s *bookingService) ConfirmBooking(ctx context.Context, bookingID uuid.UUID, paymentID string) (*model.Booking, error) {
 	// Get booking
@@ -319,6 +460,9 @@ func (s *bookingService) CancelBooking(ctx context.Context, bookingID uuid.UUID,
 	if err := s.repo.CreateHistory(ctx, history); err != nil {
 		log.Warn().Err(err).Msg("Failed to create booking history")
 	}
+
+	// Send cancellation notifications
+	go s.sendBookingCancellationNotifications(ctx, booking, reason)
 
 	log.Info().
 		Str("booking_id", bookingID.String()).
@@ -558,6 +702,103 @@ func (s *bookingService) CalculateBookingSummary(ctx context.Context, request *B
 		GST:        gst,
 		Total:      total,
 	}, nil
+}
+
+// sendBookingConfirmationNotifications sends confirmation notifications for a booking
+func (s *bookingService) sendBookingConfirmationNotifications(ctx context.Context, booking *model.Booking) {
+	// Get user details
+	user, err := s.externalService.ValidateUser(ctx, booking.UserID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get user details for notification")
+		return
+	}
+
+	// Get salon details
+	salon, err := s.externalService.GetSalon(ctx, booking.SalonID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get salon details for notification")
+		return
+	}
+
+	// Get branch details
+	branch, err := s.externalService.GetBranch(ctx, booking.SalonID, booking.BranchID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get branch details for notification")
+		return
+	}
+
+	// Prepare booking event
+	bookingEvent := &BookingEvent{
+		Type:      "booking.confirmed",
+		BookingID: booking.ID,
+		UserID:    booking.UserID,
+		SalonID:   booking.SalonID,
+		BranchID:  booking.BranchID,
+		Timestamp: time.Now(),
+		Data: map[string]interface{}{
+			"user_name":     user.Name,
+			"user_email":    user.Email,
+			"user_phone":    user.Phone,
+			"salon_name":    salon.Name,
+			"branch_name":   branch.Name,
+			"total_amount":  booking.TotalAmount,
+			"booking_time":  booking.CreatedAt.Format("2006-01-02 15:04"),
+			"payment_id":    booking.PaymentID,
+		},
+	}
+
+	// Send notifications
+	if err := s.notificationClient.SendBookingConfirmationNotification(ctx, bookingEvent); err != nil {
+		log.Error().Err(err).Msg("Failed to send booking confirmation notifications")
+	}
+}
+
+// sendBookingCancellationNotifications sends cancellation notifications for a booking
+func (s *bookingService) sendBookingCancellationNotifications(ctx context.Context, booking *model.Booking, reason string) {
+	// Get user details
+	user, err := s.externalService.ValidateUser(ctx, booking.UserID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get user details for notification")
+		return
+	}
+
+	// Get salon details
+	salon, err := s.externalService.GetSalon(ctx, booking.SalonID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get salon details for notification")
+		return
+	}
+
+	// Get branch details
+	branch, err := s.externalService.GetBranch(ctx, booking.SalonID, booking.BranchID)
+	if err != nil {
+		log.Error().Err(err).Msg("Failed to get branch details for notification")
+		return
+	}
+
+	// Prepare booking event
+	bookingEvent := &BookingEvent{
+		Type:      "booking.cancelled",
+		BookingID: booking.ID,
+		UserID:    booking.UserID,
+		SalonID:   booking.SalonID,
+		BranchID:  booking.BranchID,
+		Timestamp: time.Now(),
+		Data: map[string]interface{}{
+			"user_name":    user.Name,
+			"user_email":   user.Email,
+			"user_phone":   user.Phone,
+			"salon_name":   salon.Name,
+			"branch_name":  branch.Name,
+			"booking_time": booking.CreatedAt.Format("2006-01-02 15:04"),
+			"reason":       reason,
+		},
+	}
+
+	// Send notifications
+	if err := s.notificationClient.SendBookingCancellationNotification(ctx, bookingEvent); err != nil {
+		log.Error().Err(err).Msg("Failed to send booking cancellation notifications")
+	}
 }
 
 // Helper function to convert string to pointer

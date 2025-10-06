@@ -44,23 +44,104 @@ services:
       - BOOKING_SERVICE_JWT_REFRESHSECRET=${JWT_REFRESH_SECRET}
       - USER_SERVICE_URL=http://user-service:8080
       - SALON_SERVICE_URL=http://salon-service:8081
+      - PAYMENT_SERVICE_URL=http://payment-service:8083
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8084
     depends_on:
       - postgres
       - user-service
       - salon-service
+      - payment-service
+      - notification-service
+    restart: unless-stopped
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.payment-service
+    ports:
+      - "8083:8083"
+    environment:
+      - PAYMENT_SERVICE_ENV=development
+      - PAYMENT_SERVICE_DB_URL=${PAYMENT_DB_URL:-postgres://postgres:postgres@postgres:5432/salon?sslmode=disable}
+      - PAYMENT_SERVICE_REDIS_URL=redis://redis:6379/0
+      - PAYMENT_SERVICE_STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - PAYMENT_SERVICE_STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - PAYMENT_SERVICE_RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-}
+      - PAYMENT_SERVICE_RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET:-}
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.notification-service
+    ports:
+      - "8084:8084"
+    environment:
+      - NOTIFICATION_SERVICE_ENV=development
+      - NOTIFICATION_SERVICE_DB_URL=${NOTIFICATION_DB_URL:-postgres://postgres:postgres@postgres:5432/salon?sslmode=disable}
+      - NOTIFICATION_SERVICE_REDIS_URL=redis://redis:6379/1
+      - NOTIFICATION_SERVICE_SMTP_HOST=${SMTP_HOST:-mailhog}
+      - NOTIFICATION_SERVICE_SMTP_PORT=${SMTP_PORT:-1025}
+      - NOTIFICATION_SERVICE_SMTP_USERNAME=${SMTP_USERNAME:-}
+      - NOTIFICATION_SERVICE_SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - NOTIFICATION_SERVICE_TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - NOTIFICATION_SERVICE_TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+    depends_on:
+      - postgres
+      - redis
+      - mailhog
     restart: unless-stopped
 
   postgres:
     image: postgres:15-alpine
     environment:
       - POSTGRES_DB=salon
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"  # SMTP server
+      - "8025:8025"  # Web UI
+    restart: unless-stopped
+
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8090:8080"  # Use port 8090 to avoid conflict with user-service
+    environment:
+      - ADMINER_DEFAULT_SERVER=postgres
+    restart: unless-stopped
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:
+  redis_data:

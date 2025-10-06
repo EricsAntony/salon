@@ -106,6 +106,11 @@ func main() {
 		r.Patch("/bookings/{bookingId}/cancel", handlers.CancelBooking)
 		r.Patch("/bookings/{bookingId}/reschedule", handlers.RescheduleBooking)
 		
+		// Payment routes
+		r.Post("/bookings/{bookingId}/payment/initiate", handlers.InitiatePayment)
+		r.Post("/bookings/{bookingId}/payment/callback", handlers.ProcessPaymentCallback)
+		r.Post("/bookings/{bookingId}/payment/refund", handlers.RefundPayment)
+		
 		// Branch configuration
 		r.Get("/branches/{branchId}/config", handlers.GetBranchConfig)
 	})
