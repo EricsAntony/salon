@@ -1,0 +1,18 @@
+env: dev
+server:
+  port: "8082"
+db:
+  url: "postgres://user:password@localhost:5432/salon?sslmode=disable"
+jwt:
+  accesssecret: "dev-access-secret-change-me"
+  refreshsecret: "dev-refresh-secret-change-me"
+  accessttlminutes: 60  # Longer for development
+  refreshttldays: 30    # Longer for development
+log:
+  level: debug
+  servicename: booking-service-dev
+external:
+  userservice:
+    url: "http://localhost:8080"
+  salonservice:
+    url: "http://localhost:8081"

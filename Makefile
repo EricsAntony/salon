@@ -1,5 +1,5 @@
 # Salon Platform - Root Makefile
-# Manages both user-service and salon-service
+# Manages user-service, salon-service, and booking-service
 
 .PHONY: help build test clean deploy docker-build docker-push local-up local-down
 
@@ -11,11 +11,13 @@ help:
 	@echo "  make build           Build all services"
 	@echo "  make build-user      Build user-service only"
 	@echo "  make build-salon     Build salon-service only"
+	@echo "  make build-booking   Build booking-service only"
 	@echo ""
 	@echo "🧪 Test Commands:"
 	@echo "  make test            Run tests for all services"
 	@echo "  make test-user       Run user-service tests"
 	@echo "  make test-salon      Run salon-service tests"
+	@echo "  make test-booking    Run booking-service tests"
 	@echo ""
 	@echo "🐳 Docker Commands:"
 	@echo "  make docker-build    Build Docker images"
@@ -41,7 +43,7 @@ help:
 	@echo "  make config-diff ENV1=dev ENV2=prod  Compare configs"
 
 # Build commands
-build: build-user build-salon
+build: build-user build-salon build-booking
 
 build-user:
 	@echo "🏗️ Building user-service..."
@@ -51,8 +53,12 @@ build-salon:
 	@echo "🏗️ Building salon-service..."
 	cd salon-service && go build -o ../bin/salon-service ./cmd
 
+build-booking:
+	@echo "🏗️ Building booking-service..."
+	cd booking-service && go build -o ../bin/booking-service ./cmd
+
 # Test commands
-test: test-user test-salon
+test: test-user test-salon test-booking
 
 test-user:
 	@echo "🧪 Testing user-service..."
@@ -61,6 +67,10 @@ test-user:
 test-salon:
 	@echo "🧪 Testing salon-service..."
 	cd salon-service && go test ./...
+
+test-booking:
+	@echo "🧪 Testing booking-service..."
+	cd booking-service && go test ./...
 
 test-shared:
 	@echo "🧪 Testing salon-shared..."
@@ -71,11 +81,13 @@ docker-build:
 	@echo "🐳 Building Docker images..."
 	docker build -f Dockerfile.user-service -t salon/user-service:latest .
 	docker build -f Dockerfile.salon-service -t salon/salon-service:latest .
+	docker build -f Dockerfile.booking-service -t salon/booking-service:latest .
 
 docker-push:
 	@echo "🐳 Pushing Docker images..."
 	docker push salon/user-service:latest
 	docker push salon/salon-service:latest
+	docker push salon/booking-service:latest
 
 # Local development
 local-up:
@@ -130,23 +142,35 @@ deploy-salon-stage:
 deploy-salon-prod:
 	./deploy-multi-env.sh salon-service prod --validate-only
 
+deploy-booking-dev:
+	./deploy-multi-env.sh booking-service dev
+
+deploy-booking-stage:
+	./deploy-multi-env.sh booking-service stage
+
+deploy-booking-prod:
+	./deploy-multi-env.sh booking-service prod --validate-only
+
 # Utility commands
 clean:
 	@echo "🧹 Cleaning build artifacts..."
 	rm -rf bin/
 	cd user-service && go clean
 	cd salon-service && go clean
+	cd booking-service && go clean
 
 tidy:
 	@echo "🧹 Running go mod tidy..."
 	cd user-service && go mod tidy
 	cd salon-service && go mod tidy
+	cd booking-service && go mod tidy
 	cd salon-shared && go mod tidy
 
 fmt:
 	@echo "🎨 Formatting code..."
 	cd user-service && go fmt ./...
 	cd salon-service && go fmt ./...
+	cd booking-service && go fmt ./...
 	cd salon-shared && go fmt ./...
 
 # Create bin directory
@@ -162,6 +186,10 @@ migrate-up-salon:
 	@echo "📊 Running salon-service migrations..."
 	cd salon-service && migrate -path ./migrations -database "$(SALON_DB_URL)" up
 
+migrate-up-booking:
+	@echo "📊 Running booking-service migrations..."
+	cd booking-service && migrate -path ./migrations -database "$(BOOKING_DB_URL)" up
+
 migrate-down-user:
 	@echo "📊 Rolling back user-service migrations..."
 	cd user-service && make migrate-down
@@ -169,6 +197,10 @@ migrate-down-user:
 migrate-down-salon:
 	@echo "📊 Rolling back salon-service migrations..."
 	cd salon-service && migrate -path ./migrations -database "$(SALON_DB_URL)" down 1
+
+migrate-down-booking:
+	@echo "📊 Rolling back booking-service migrations..."
+	cd booking-service && migrate -path ./migrations -database "$(BOOKING_DB_URL)" down 1
 
 # Development helpers
 dev-user:
@@ -178,6 +210,10 @@ dev-user:
 dev-salon:
 	@echo "🔧 Starting salon-service in development mode..."
 	cd salon-service && go run ./cmd
+
+dev-booking:
+	@echo "🔧 Starting booking-service in development mode..."
+	cd booking-service && go run ./cmd
 
 # Security scan
 security-scan:
@@ -189,6 +225,7 @@ docs:
 	@echo "📚 Generating API documentation..."
 	@echo "User Service API: http://localhost:8080/docs"
 	@echo "Salon Service API: http://localhost:8081/docs"
+	@echo "Booking Service API: http://localhost:8082/docs"
 
 # Configuration management
 config-list:

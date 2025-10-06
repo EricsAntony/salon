@@ -3,7 +3,7 @@
 # Salon Platform Multi-Environment Deployment Script
 # Usage: ./deploy-multi-env.sh [service] [environment] [options]
 # 
-# Services: user-service, salon-service, all
+# Services: user-service, salon-service, booking-service, all
 # Environments: dev, stage, prod
 # Options: --auto-deploy, --validate-only, --generate-secrets
 
@@ -60,11 +60,11 @@ validate_environment() {
 validate_service() {
     local service=$1
     case $service in
-        user-service|salon-service|all)
+        user-service|salon-service|booking-service|all)
             return 0
             ;;
         *)
-            log_error "Invalid service: $service. Must be user-service, salon-service, or all"
+            log_error "Invalid service: $service. Must be user-service, salon-service, booking-service, or all"
             return 1
             ;;
     esac
@@ -123,8 +123,15 @@ validate_build() {
         return 1
     fi
     
+    # Test booking-service build
+    log_info "Testing booking-service build for $env..."
+    if ! docker build $build_args -f Dockerfile.booking-service -t salon/booking-service:$env-test . > /dev/null 2>&1; then
+        log_error "booking-service Docker build failed for $env"
+        return 1
+    fi
+    
     # Clean up test images
-    docker rmi salon/user-service:$env-test salon/salon-service:$env-test > /dev/null 2>&1 || true
+    docker rmi salon/user-service:$env-test salon/salon-service:$env-test salon/booking-service:$env-test > /dev/null 2>&1 || true
     
     log_success "Build validation completed for $env"
 }
@@ -224,9 +231,13 @@ deploy_environment() {
         "salon-service")
             log_env $env "Salon Service will be available at: https://salon-service${suffix}-<id>.onrender.com"
             ;;
+        "booking-service")
+            log_env $env "Booking Service will be available at: https://booking-service${suffix}-<id>.onrender.com"
+            ;;
         "all")
             log_env $env "User Service will be available at: https://user-service${suffix}-<id>.onrender.com"
             log_env $env "Salon Service will be available at: https://salon-service${suffix}-<id>.onrender.com"
+            log_env $env "Booking Service will be available at: https://booking-service${suffix}-<id>.onrender.com"
             log_env $env "Database: salon-db${suffix} (salon_${env} database)"
             ;;
     esac
@@ -272,9 +283,20 @@ show_environment_status() {
     echo ""
     
     echo "🌐 Service URLs (after deployment):"
-    echo "  • DEV:   https://user-service-dev-<id>.onrender.com"
-    echo "  • STAGE: https://user-service-stage-<id>.onrender.com"
-    echo "  • PROD:  https://user-service-prod-<id>.onrender.com"
+    echo "  User Service:"
+    echo "    • DEV:   https://user-service-dev-<id>.onrender.com"
+    echo "    • STAGE: https://user-service-stage-<id>.onrender.com"
+    echo "    • PROD:  https://user-service-prod-<id>.onrender.com"
+    echo ""
+    echo "  Salon Service:"
+    echo "    • DEV:   https://salon-service-dev-<id>.onrender.com"
+    echo "    • STAGE: https://salon-service-stage-<id>.onrender.com"
+    echo "    • PROD:  https://salon-service-prod-<id>.onrender.com"
+    echo ""
+    echo "  Booking Service:"
+    echo "    • DEV:   https://booking-service-dev-<id>.onrender.com"
+    echo "    • STAGE: https://booking-service-stage-<id>.onrender.com"
+    echo "    • PROD:  https://booking-service-prod-<id>.onrender.com"
     echo ""
     
     echo "📊 Database Names:"
@@ -355,7 +377,7 @@ main() {
     
     # Deploy
     case $service in
-        "user-service"|"salon-service"|"all")
+        "user-service"|"salon-service"|"booking-service"|"all")
             deploy_environment $service $env $auto_deploy_flag
             ;;
     esac
@@ -382,10 +404,11 @@ if [ $# -eq 0 ]; then
     echo "Usage: $0 [service] [environment] [options]"
     echo ""
     echo "Services:"
-    echo "  user-service    Deploy only user service"
-    echo "  salon-service   Deploy only salon service"
-    echo "  all            Deploy all services (default)"
-    echo "  status         Show environment status"
+    echo "  user-service     Deploy only user service"
+    echo "  salon-service    Deploy only salon service"
+    echo "  booking-service  Deploy only booking service"
+    echo "  all             Deploy all services (default)"
+    echo "  status          Show environment status"
     echo ""
     echo "Environments:"
     echo "  dev            Development environment (default)"
@@ -400,6 +423,7 @@ if [ $# -eq 0 ]; then
     echo "Examples:"
     echo "  $0 all dev                    # Deploy all to dev"
     echo "  $0 user-service stage         # Deploy user-service to stage"
+    echo "  $0 booking-service dev        # Deploy booking-service to dev"
     echo "  $0 all prod --validate-only   # Validate prod deployment"
     echo "  $0 status                     # Show environment status"
     exit 1

@@ -1,4 +1,3 @@
-#  Salon Platform
 
 A comprehensive salon management platform built with microservices architecture, featuring shared components and production-ready deployment.
 
@@ -6,7 +5,8 @@ A comprehensive salon management platform built with microservices architecture,
 
 ### Services
 - **user-service** (Port 8080): Customer-facing API for user registration, authentication, and profile management
-- **salon-service** (Port 8081): Business management API for salon operations, staff, and services  
+- **salon-service** (Port 8081): Business management API for salon operations, staff, and services
+- **booking-service** (Port 8082): Booking management API for appointments, availability, and scheduling
 - **salon-shared**: Common functionality shared across all services
 
 ### Shared Components
@@ -25,9 +25,10 @@ All services leverage the `salon-shared` module for:
 make local-up
 
 # Services available at:
-# User Service:  http://localhost:8080
-# Salon Service: http://localhost:8081
-# PostgreSQL:    localhost:5432 (database: salon)
+# User Service:    http://localhost:8080
+# Salon Service:   http://localhost:8081
+# Booking Service: http://localhost:8082
+# PostgreSQL:      localhost:5432 (database: salon)
 ```
 
 ### Individual Service Development
@@ -37,6 +38,9 @@ cd user-service && go run ./cmd
 
 # Salon Service  
 cd salon-service && go run ./cmd
+
+# Booking Service
+cd booking-service && go run ./cmd
 ```
 
 ##  Available Commands
@@ -56,6 +60,7 @@ make local-down     # Stop local environment
 make deploy         # Deploy all to Render
 make deploy-user    # Deploy user-service only
 make deploy-salon   # Deploy salon-service only
+make deploy-booking # Deploy booking-service only
 make deploy-status  # Show deployment status
 
 # Configuration Management
@@ -119,9 +124,21 @@ make deploy-status
 ```
 
 ### Service URLs (After Deployment)
+
+#### User Service
 - **DEV**: `https://user-service-dev-<id>.onrender.com`
 - **STAGE**: `https://user-service-stage-<id>.onrender.com`
 - **PROD**: `https://user-service-prod-<id>.onrender.com`
+
+#### Salon Service
+- **DEV**: `https://salon-service-dev-<id>.onrender.com`
+- **STAGE**: `https://salon-service-stage-<id>.onrender.com`
+- **PROD**: `https://salon-service-prod-<id>.onrender.com`
+
+#### Booking Service
+- **DEV**: `https://booking-service-dev-<id>.onrender.com`
+- **STAGE**: `https://booking-service-stage-<id>.onrender.com`
+- **PROD**: `https://booking-service-prod-<id>.onrender.com`
 
 ### Deployment Workflow
 
@@ -180,12 +197,25 @@ SALON_SERVICE_JWT_REFRESHTTLDAYS=7
 SALON_SERVICE_OTP_EXPIRYMINUTES=5
 ```
 
+#### Booking Service
+```bash
+BOOKING_SERVICE_ENV=prod
+BOOKING_SERVICE_DB_URL=<postgres-connection-string>
+BOOKING_SERVICE_JWT_ACCESSSECRET=<secret>
+BOOKING_SERVICE_JWT_REFRESHSECRET=<secret>
+BOOKING_SERVICE_JWT_ACCESSTTLMINUTES=15
+BOOKING_SERVICE_JWT_REFRESHTTLDAYS=7
+USER_SERVICE_URL=https://user-service-prod-<id>.onrender.com
+SALON_SERVICE_URL=https://salon-service-prod-<id>.onrender.com
+```
+
 ##  Database Schema
 
-Both services share a single PostgreSQL database named `salon`:
+All services share a single PostgreSQL database named `salon`:
 
 - **User Service Tables**: `users`, `otps`, `tokens`
 - **Salon Service Tables**: `salons`, `branches`, `categories`, `services`, `staff`, `staff_auth`, `staff_services`
+- **Booking Service Tables**: `bookings`, `booking_services`, `booking_history`, `branch_configurations`
 
 ##  Security Features
 
@@ -213,12 +243,24 @@ Both services share a single PostgreSQL database named `salon`:
 - `GET /salons/{id}` - Get salon details
 - Staff, services, categories, and branch management endpoints
 
+### Booking Service Endpoints
+- `POST /bookings/initiate` - Initiate new booking (protected)
+- `POST /bookings/confirm` - Confirm booking with payment (protected)
+- `GET /bookings/{id}` - Get booking details (protected)
+- `GET /bookings/user/{userId}` - Get user bookings (protected)
+- `PATCH /bookings/{id}/cancel` - Cancel booking (protected)
+- `PATCH /bookings/{id}/reschedule` - Reschedule booking (protected)
+- `GET /stylists/{id}/availability` - Get stylist availability
+- `POST /bookings/summary` - Calculate booking pricing
+- `GET /branches/{id}/config` - Get branch configuration
+
 ##  Development
 
 ### Project Structure
 salon/
 ├── user-service/              # Customer API service
 ├── salon-service/             # Business management API
+├── booking-service/           # Booking management API
 ├── salon-shared/              # Shared components
 ├── config/                    # Configuration management
 │   ├── environments/          # Environment-specific configs
@@ -231,6 +273,7 @@ salon/
 │   └── README.md             # Configuration guide
 ├── Dockerfile.user-service    # User service container
 ├── Dockerfile.salon-service   # Salon service container
+├── Dockerfile.booking-service # Booking service container
 ├── docker-compose.yml        # Local development
 ├── deploy-multi-env.sh       # Multi-environment deployment
 ├── config-manager.sh         # Configuration management
@@ -248,6 +291,7 @@ salon/
 
 - [User Service Documentation](./user-service/README.md)
 - [Salon Service Documentation](./salon-service/README.md)
+- [Booking Service Documentation](./booking-service/README.md)
 
 ##  Contributing
 

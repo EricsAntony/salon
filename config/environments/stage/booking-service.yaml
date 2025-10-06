@@ -1,0 +1,18 @@
+env: stage
+server:
+  port: "8082"
+db:
+  url: "postgres://user:password@localhost:5432/salon?sslmode=disable"
+jwt:
+  accesssecret: "stage-access-secret-change-me"
+  refreshsecret: "stage-refresh-secret-change-me"
+  accessttlminutes: 15
+  refreshttldays: 7
+log:
+  level: info
+  servicename: booking-service-stage
+external:
+  userservice:
+    url: "https://user-service-stage.onrender.com"
+  salonservice:
+    url: "https://salon-service-stage.onrender.com"

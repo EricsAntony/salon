@@ -1,0 +1,18 @@
+env: prod
+server:
+  port: "8082"
+db:
+  url: "postgres://user:password@localhost:5432/salon?sslmode=disable"
+jwt:
+  accesssecret: "prod-access-secret-change-me"
+  refreshsecret: "prod-refresh-secret-change-me"
+  accessttlminutes: 15
+  refreshttldays: 7
+log:
+  level: warn
+  servicename: booking-service-prod
+external:
+  userservice:
+    url: "https://user-service-prod.onrender.com"
+  salonservice:
+    url: "https://salon-service-prod.onrender.com"
