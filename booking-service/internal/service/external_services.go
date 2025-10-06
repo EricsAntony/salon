@@ -89,10 +89,10 @@ type StylistInfo struct {
 }
 
 type StylistSchedule struct {
-	StylistID    uuid.UUID      `json:"stylist_id"`
-	Date         time.Time      `json:"date"`
-	WorkingHours []WorkingHour  `json:"working_hours"`
-	Breaks       []BreakPeriod  `json:"breaks"`
+	StylistID    uuid.UUID     `json:"stylist_id"`
+	Date         time.Time     `json:"date"`
+	WorkingHours []WorkingHour `json:"working_hours"`
+	Breaks       []BreakPeriod `json:"breaks"`
 }
 
 type WorkingHour struct {
@@ -165,213 +165,213 @@ func NewExternalService(userServiceURL, salonServiceURL string) ExternalService 
 // ValidateUser validates a user exists and returns user info
 func (e *externalService) ValidateUser(ctx context.Context, userID uuid.UUID) (*UserInfo, error) {
 	url := fmt.Sprintf("%s/user/%s", e.userServiceURL, userID)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call user service: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("user not found")
 	}
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("user service returned status %d", resp.StatusCode)
 	}
-	
+
 	var user UserInfo
 	if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
 		return nil, fmt.Errorf("failed to decode user response: %w", err)
 	}
-	
+
 	return &user, nil
 }
 
 // GetSalon retrieves salon information
 func (e *externalService) GetSalon(ctx context.Context, salonID uuid.UUID) (*SalonInfo, error) {
 	url := fmt.Sprintf("%s/salons/%s", e.salonServiceURL, salonID)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call salon service: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("salon not found")
 	}
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("salon service returned status %d", resp.StatusCode)
 	}
-	
+
 	var salon SalonInfo
 	if err := json.NewDecoder(resp.Body).Decode(&salon); err != nil {
 		return nil, fmt.Errorf("failed to decode salon response: %w", err)
 	}
-	
+
 	return &salon, nil
 }
 
 // GetBranch retrieves branch information
 func (e *externalService) GetBranch(ctx context.Context, salonID, branchID uuid.UUID) (*BranchInfo, error) {
 	url := fmt.Sprintf("%s/salons/%s/branches/%s", e.salonServiceURL, salonID, branchID)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call salon service: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("branch not found")
 	}
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("salon service returned status %d", resp.StatusCode)
 	}
-	
+
 	var branch BranchInfo
 	if err := json.NewDecoder(resp.Body).Decode(&branch); err != nil {
 		return nil, fmt.Errorf("failed to decode branch response: %w", err)
 	}
-	
+
 	return &branch, nil
 }
 
 // GetService retrieves service information
 func (e *externalService) GetService(ctx context.Context, salonID, serviceID uuid.UUID) (*ServiceInfo, error) {
 	url := fmt.Sprintf("%s/salons/%s/services/%s", e.salonServiceURL, salonID, serviceID)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call salon service: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("service not found")
 	}
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("salon service returned status %d", resp.StatusCode)
 	}
-	
+
 	var service ServiceInfo
 	if err := json.NewDecoder(resp.Body).Decode(&service); err != nil {
 		return nil, fmt.Errorf("failed to decode service response: %w", err)
 	}
-	
+
 	return &service, nil
 }
 
 // GetStylist retrieves stylist information
 func (e *externalService) GetStylist(ctx context.Context, salonID, stylistID uuid.UUID) (*StylistInfo, error) {
 	url := fmt.Sprintf("%s/salons/%s/staff/%s", e.salonServiceURL, salonID, stylistID)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call salon service: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("stylist not found")
 	}
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("salon service returned status %d", resp.StatusCode)
 	}
-	
+
 	var stylist StylistInfo
 	if err := json.NewDecoder(resp.Body).Decode(&stylist); err != nil {
 		return nil, fmt.Errorf("failed to decode stylist response: %w", err)
 	}
-	
+
 	return &stylist, nil
 }
 
 // GetStylistSchedule retrieves stylist schedule for a specific date
 func (e *externalService) GetStylistSchedule(ctx context.Context, salonID, stylistID uuid.UUID, date time.Time) (*StylistSchedule, error) {
 	url := fmt.Sprintf("%s/salons/%s/staff/%s/schedule?date=%s", e.salonServiceURL, salonID, stylistID, date.Format("2006-01-02"))
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call salon service: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, fmt.Errorf("stylist schedule not found")
 	}
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("salon service returned status %d", resp.StatusCode)
 	}
-	
+
 	var schedule StylistSchedule
 	if err := json.NewDecoder(resp.Body).Decode(&schedule); err != nil {
 		return nil, fmt.Errorf("failed to decode schedule response: %w", err)
 	}
-	
+
 	return &schedule, nil
 }
 
 // GetStylistServices retrieves services offered by a stylist
 func (e *externalService) GetStylistServices(ctx context.Context, salonID, stylistID uuid.UUID) ([]*ServiceInfo, error) {
 	url := fmt.Sprintf("%s/salons/%s/staff/%s/services", e.salonServiceURL, salonID, stylistID)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
-	
+
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call salon service: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("salon service returned status %d", resp.StatusCode)
 	}
-	
+
 	var services []*ServiceInfo
 	if err := json.NewDecoder(resp.Body).Decode(&services); err != nil {
 		return nil, fmt.Errorf("failed to decode services response: %w", err)
 	}
-	
+
 	return services, nil
 }
 
