@@ -1,0 +1,60 @@
+# Build stage
+FROM golang:1.23-alpine3.19 AS builder
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates tzdata
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY booking-service/go.mod booking-service/go.sum ./booking-service/
+COPY salon-shared/go.mod salon-shared/go.sum ./salon-shared/
+
+# Download dependencies
+WORKDIR /app/booking-service
+RUN go mod download
+
+# Copy source code
+WORKDIR /app
+COPY booking-service/ ./booking-service/
+COPY salon-shared/ ./salon-shared/
+
+# Build the application
+WORKDIR /app/booking-service
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -a -installsuffix cgo \
+    -o booking-service \
+    ./cmd
+
+# Final stage
+FROM alpine:3.19
+
+# Install runtime dependencies
+RUN apk --no-cache add ca-certificates tzdata && \
+    adduser -D -s /bin/sh -u 10001 appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder stage
+COPY --from=builder /app/booking-service/booking-service .
+COPY --from=builder /app/booking-service/configs ./configs
+COPY --from=builder /app/booking-service/migrations ./migrations
+
+# Change ownership to appuser
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8082
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8082/health || exit 1
+
+# Run the application
+CMD ["./booking-service"]

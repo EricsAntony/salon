@@ -1,0 +1,19 @@
+environment: development
+port: 8082
+database_url: "postgres://postgres:password@localhost:5432/salon?sslmode=disable"
+
+# External service URLs
+user_service_url: "http://localhost:8080"
+salon_service_url: "http://localhost:8081"
+
+# JWT secrets (override with environment variables in production)
+jwt_access_secret: "your-jwt-access-secret-here"
+jwt_refresh_secret: "your-jwt-refresh-secret-here"
+
+# Default booking configuration
+default_buffer_time_minutes: 15
+default_cancellation_cutoff_hours: 2
+default_reschedule_window_hours: 4
+default_max_advance_booking_days: 30
+default_booking_fee_amount: 50.0
+default_gst_percentage: 18.0

@@ -31,6 +31,25 @@ services:
       - postgres
     restart: unless-stopped
 
+  booking-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.booking-service
+    ports:
+      - "8082:8082"
+    environment:
+      - BOOKING_SERVICE_ENV=production
+      - BOOKING_SERVICE_DB_URL=${BOOKING_DB_URL}
+      - BOOKING_SERVICE_JWT_ACCESSSECRET=${JWT_ACCESS_SECRET}
+      - BOOKING_SERVICE_JWT_REFRESHSECRET=${JWT_REFRESH_SECRET}
+      - USER_SERVICE_URL=http://user-service:8080
+      - SALON_SERVICE_URL=http://salon-service:8081
+    depends_on:
+      - postgres
+      - user-service
+      - salon-service
+    restart: unless-stopped
+
   postgres:
     image: postgres:15-alpine
     environment:
