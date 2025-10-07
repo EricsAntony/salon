@@ -1,0 +1,54 @@
+env: stage
+server:
+  port: "8084"
+db:
+  url: "postgres://user:password@stage-db.example.com:5432/salon_stage?sslmode=require"
+log:
+  level: info
+  servicename: notification-service-stage
+notifications:
+  providers:
+    email:
+      smtp:
+        host: ""  # Set via environment variables
+        port: 587
+        username: ""  # Set via environment variables
+        password: ""  # Set via environment variables
+        from: "noreply@salon-stage.com"
+        tls: true
+    sms:
+      twilio:
+        accountsid: ""  # Set via environment variables
+        authtoken: ""  # Set via environment variables
+        from: ""  # Set via environment variables
+    push:
+      fcm:
+        serverkey: ""  # Set via environment variables
+        projectid: ""  # Set via environment variables
+  templates:
+    path: "./templates"
+    cache: true
+  retry:
+    maxattempts: 3
+    backoff: "exponential"
+    initialdelay: 1s
+    maxdelay: 60s
+redis:
+  url: "redis://stage-redis.example.com:6379/1"
+  timeout: 5s
+  maxretries: 3
+queue:
+  redis:
+    url: "redis://stage-redis.example.com:6379/2"
+    maxjobs: 5000
+  rabbitmq:
+    url: "amqp://user:password@stage-rabbitmq.example.com:5672/"
+    exchange: "notifications"
+    queue: "notification_queue"
+ratelimit:
+  requestsperminute: 200
+  burstsize: 30
+security:
+  cors:
+    enabled: true
+    origins: ["https://salon-stage.example.com"]

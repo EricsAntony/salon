@@ -16,3 +16,7 @@ external:
     url: "http://localhost:8080"
   salonservice:
     url: "http://localhost:8081"
+  paymentservice:
+    url: "http://localhost:8083"
+  notificationservice:
+    url: "http://localhost:8084"

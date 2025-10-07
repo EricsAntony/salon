@@ -16,3 +16,7 @@ external:
     url: "https://user-service-stage.onrender.com"
   salonservice:
     url: "https://salon-service-stage.onrender.com"
+  paymentservice:
+    url: "https://payment-service-stage.onrender.com"
+  notificationservice:
+    url: "https://notification-service-stage.onrender.com"

@@ -102,6 +102,88 @@ services:
         value: https://user-service-stage.onrender.com
       - key: SALON_SERVICE_URL
         value: https://salon-service-stage.onrender.com
+      - key: PAYMENT_SERVICE_URL
+        value: https://payment-service-stage.onrender.com
+      - key: NOTIFICATION_SERVICE_URL
+        value: https://notification-service-stage.onrender.com
+
+  # Payment Service - Staging
+  - type: web
+    name: payment-service-stage
+    runtime: docker
+    plan: starter
+    branch: main
+    autoDeploy: false  # Manual deploy for staging
+    dockerfilePath: ./Dockerfile.payment-service
+    envVars:
+      - key: PORT
+        value: 8083
+      - key: PAYMENT_SERVICE_ENV
+        value: stage
+      - key: PAYMENT_SERVICE_SERVER_PORT
+        value: 8083
+      - key: PAYMENT_SERVICE_DB_URL
+        fromDatabase:
+          name: salon-db-stage
+          property: connectionString
+      - key: PAYMENT_SERVICE_LOG_LEVEL
+        value: info
+      - key: PAYMENT_SERVICE_LOG_SERVICENAME
+        value: payment-service-stage
+      - key: PAYMENT_SERVICE_STRIPE_SECRET_KEY
+        sync: false
+      - key: PAYMENT_SERVICE_STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: PAYMENT_SERVICE_RAZORPAY_KEY_ID
+        sync: false
+      - key: PAYMENT_SERVICE_RAZORPAY_KEY_SECRET
+        sync: false
+      - key: PAYMENT_SERVICE_RAZORPAY_WEBHOOK_SECRET
+        sync: false
+
+  # Notification Service - Staging
+  - type: web
+    name: notification-service-stage
+    runtime: docker
+    plan: starter
+    branch: main
+    autoDeploy: false  # Manual deploy for staging
+    dockerfilePath: ./Dockerfile.notification-service
+    envVars:
+      - key: PORT
+        value: 8084
+      - key: NOTIFICATION_SERVICE_ENV
+        value: stage
+      - key: NOTIFICATION_SERVICE_SERVER_PORT
+        value: 8084
+      - key: NOTIFICATION_SERVICE_DB_URL
+        fromDatabase:
+          name: salon-db-stage
+          property: connectionString
+      - key: NOTIFICATION_SERVICE_LOG_LEVEL
+        value: info
+      - key: NOTIFICATION_SERVICE_LOG_SERVICENAME
+        value: notification-service-stage
+      - key: NOTIFICATION_SERVICE_SMTP_HOST
+        sync: false
+      - key: NOTIFICATION_SERVICE_SMTP_PORT
+        value: 587
+      - key: NOTIFICATION_SERVICE_SMTP_USERNAME
+        sync: false
+      - key: NOTIFICATION_SERVICE_SMTP_PASSWORD
+        sync: false
+      - key: NOTIFICATION_SERVICE_SMTP_FROM
+        value: noreply@salon-stage.com
+      - key: NOTIFICATION_SERVICE_TWILIO_ACCOUNT_SID
+        sync: false
+      - key: NOTIFICATION_SERVICE_TWILIO_AUTH_TOKEN
+        sync: false
+      - key: NOTIFICATION_SERVICE_TWILIO_FROM
+        sync: false
+      - key: NOTIFICATION_SERVICE_FCM_SERVER_KEY
+        sync: false
+      - key: NOTIFICATION_SERVICE_FCM_PROJECT_ID
+        sync: false
 
 databases:
   - name: salon-db-stage

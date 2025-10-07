@@ -1,0 +1,36 @@
+env: dev
+server:
+  port: "8083"
+db:
+  url: "postgres://user:password@localhost:5432/salon?sslmode=disable"
+log:
+  level: debug
+  servicename: payment-service-dev
+payment:
+  gateways:
+    stripe:
+      secretkey: ""  # Set via environment variables
+      webhooksecret: ""  # Set via environment variables
+      publickey: ""  # Set via environment variables
+    razorpay:
+      keyid: ""  # Set via environment variables
+      keysecret: ""  # Set via environment variables
+      webhooksecret: ""  # Set via environment variables
+  webhook:
+    timeout: 30s
+    retries: 3
+  idempotency:
+    ttl: 24h
+redis:
+  url: "redis://localhost:6379/0"
+  timeout: 5s
+  maxretries: 3
+ratelimit:
+  requestsperminute: 100
+  burstsize: 20
+security:
+  cors:
+    enabled: true
+    origins: ["http://localhost:3000", "http://localhost:8080"]
+  webhook:
+    verifysignature: true

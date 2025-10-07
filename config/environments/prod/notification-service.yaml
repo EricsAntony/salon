@@ -1,0 +1,54 @@
+env: prod
+server:
+  port: "8084"
+db:
+  url: "postgres://user:password@prod-db.example.com:5432/salon_prod?sslmode=require"
+log:
+  level: warn  # Minimal logging for production
+  servicename: notification-service-prod
+notifications:
+  providers:
+    email:
+      smtp:
+        host: ""  # Set via environment variables
+        port: 587
+        username: ""  # Set via environment variables
+        password: ""  # Set via environment variables
+        from: "noreply@salon.com"
+        tls: true
+    sms:
+      twilio:
+        accountsid: ""  # Set via environment variables
+        authtoken: ""  # Set via environment variables
+        from: ""  # Set via environment variables
+    push:
+      fcm:
+        serverkey: ""  # Set via environment variables
+        projectid: ""  # Set via environment variables
+  templates:
+    path: "./templates"
+    cache: true
+  retry:
+    maxattempts: 5
+    backoff: "exponential"
+    initialdelay: 2s
+    maxdelay: 300s  # 5 minutes max delay
+redis:
+  url: "redis://prod-redis.example.com:6379/1"
+  timeout: 5s
+  maxretries: 5
+queue:
+  redis:
+    url: "redis://prod-redis.example.com:6379/2"
+    maxjobs: 10000
+  rabbitmq:
+    url: "amqp://user:password@prod-rabbitmq.example.com:5672/"
+    exchange: "notifications"
+    queue: "notification_queue"
+ratelimit:
+  requestsperminute: 200
+  burstsize: 10  # Stricter for production
+security:
+  cors:
+    enabled: true
+    origins: ["https://salon.com"]

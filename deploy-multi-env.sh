@@ -3,7 +3,7 @@
 # Salon Platform Multi-Environment Deployment Script
 # Usage: ./deploy-multi-env.sh [service] [environment] [options]
 # 
-# Services: user-service, salon-service, booking-service, all
+# Services: user-service, salon-service, booking-service, payment-service, notification-service, all
 # Environments: dev, stage, prod
 # Options: --auto-deploy, --validate-only, --generate-secrets
 
@@ -60,11 +60,11 @@ validate_environment() {
 validate_service() {
     local service=$1
     case $service in
-        user-service|salon-service|booking-service|all)
+        user-service|salon-service|booking-service|payment-service|notification-service|all)
             return 0
             ;;
         *)
-            log_error "Invalid service: $service. Must be user-service, salon-service, booking-service, or all"
+            log_error "Invalid service: $service. Must be user-service, salon-service, booking-service, payment-service, notification-service, or all"
             return 1
             ;;
     esac
@@ -130,75 +130,39 @@ validate_build() {
         return 1
     fi
     
+    # Test payment-service build
+    log_info "Testing payment-service build for $env..."
+    if ! docker build $build_args -f Dockerfile.payment-service -t salon/payment-service:$env-test . > /dev/null 2>&1; then
+        log_error "payment-service Docker build failed for $env"
+        return 1
+    fi
+    
+    # Test notification-service build
+    log_info "Testing notification-service build for $env..."
+    if ! docker build $build_args -f Dockerfile.notification-service -t salon/notification-service:$env-test . > /dev/null 2>&1; then
+        log_error "notification-service Docker build failed for $env"
+        return 1
+    fi
+    
     # Clean up test images
-    docker rmi salon/user-service:$env-test salon/salon-service:$env-test salon/booking-service:$env-test > /dev/null 2>&1 || true
+    docker rmi salon/user-service:$env-test salon/salon-service:$env-test salon/booking-service:$env-test salon/payment-service:$env-test salon/notification-service:$env-test > /dev/null 2>&1 || true
     
     log_success "Build validation completed for $env"
 }
 
-# Generate environment-specific secrets
+# Generate environment-specific secrets (Updated for service-specific structure)
 generate_secrets() {
     local env=$1
-    local secrets_file="config/environments/${env}/secrets.env"
     
-    log_info "Generating secrets template for $env environment..."
-    
-    cat > $secrets_file << EOF
-# Render Environment Variables for ${env^^} Environment
-# Copy these to your Render ${env} service settings
-
-# JWT Secrets (Generate strong random strings for ${env})
-USER_SERVICE_JWT_ACCESSSECRET=${env}-user-access-$(openssl rand -hex 32 2>/dev/null || echo "GENERATE-RANDOM-STRING")
-USER_SERVICE_JWT_REFRESHSECRET=${env}-user-refresh-$(openssl rand -hex 32 2>/dev/null || echo "GENERATE-RANDOM-STRING")
-SALON_SERVICE_JWT_ACCESSSECRET=${env}-salon-access-$(openssl rand -hex 32 2>/dev/null || echo "GENERATE-RANDOM-STRING")
-SALON_SERVICE_JWT_REFRESHSECRET=${env}-salon-refresh-$(openssl rand -hex 32 2>/dev/null || echo "GENERATE-RANDOM-STRING")
-
-# Environment-specific configurations
-EOF
-
-    case $env in
-        dev)
-            cat >> $secrets_file << EOF
-# Development specific settings
-USER_SERVICE_JWT_ACCESSTTLMINUTES=60  # Longer for development
-USER_SERVICE_JWT_REFRESHTTLDAYS=30    # Longer for development
-USER_SERVICE_OTP_EXPIRYMINUTES=10     # Longer for testing
-SALON_SERVICE_JWT_ACCESSTTLMINUTES=60
-SALON_SERVICE_JWT_REFRESHTTLDAYS=30
-SALON_SERVICE_OTP_EXPIRYMINUTES=10
-EOF
-            ;;
-        stage)
-            cat >> $secrets_file << EOF
-# Staging specific settings (production-like)
-USER_SERVICE_JWT_ACCESSTTLMINUTES=15
-USER_SERVICE_JWT_REFRESHTTLDAYS=7
-USER_SERVICE_OTP_EXPIRYMINUTES=5
-SALON_SERVICE_JWT_ACCESSTTLMINUTES=15
-SALON_SERVICE_JWT_REFRESHTTLDAYS=7
-SALON_SERVICE_OTP_EXPIRYMINUTES=5
-EOF
-            ;;
-        prod)
-            cat >> $secrets_file << EOF
-# Production specific settings (secure)
-USER_SERVICE_JWT_ACCESSTTLMINUTES=15
-USER_SERVICE_JWT_REFRESHTTLDAYS=7
-USER_SERVICE_OTP_EXPIRYMINUTES=5
-SALON_SERVICE_JWT_ACCESSTTLMINUTES=15
-SALON_SERVICE_JWT_REFRESHTTLDAYS=7
-SALON_SERVICE_OTP_EXPIRYMINUTES=5
-
-# Production security notes:
-# - Ensure secrets are stored securely
-# - Use environment-specific database credentials
-# - Enable all security features
-# - Monitor logs and metrics
-EOF
-            ;;
-    esac
-    
-    log_success "Secrets template created: $secrets_file"
+    log_info "Service-specific environment files already exist for $env environment..."
+    log_info "Available service environment files:"
+    echo "  • config/environments/${env}/user-service.env.sample"
+    echo "  • config/environments/${env}/salon-service.env.sample"
+    echo "  • config/environments/${env}/booking-service.env.sample"
+    echo "  • config/environments/${env}/payment-service.env.sample"
+    echo "  • config/environments/${env}/notification-service.env.sample"
+    echo ""
+    log_info "Use these files to set environment variables in Render dashboard for each service"
 }
 
 # Deploy to specific environment
@@ -234,10 +198,18 @@ deploy_environment() {
         "booking-service")
             log_env $env "Booking Service will be available at: https://booking-service${suffix}-<id>.onrender.com"
             ;;
+        "payment-service")
+            log_env $env "Payment Service will be available at: https://payment-service${suffix}-<id>.onrender.com"
+            ;;
+        "notification-service")
+            log_env $env "Notification Service will be available at: https://notification-service${suffix}-<id>.onrender.com"
+            ;;
         "all")
             log_env $env "User Service will be available at: https://user-service${suffix}-<id>.onrender.com"
             log_env $env "Salon Service will be available at: https://salon-service${suffix}-<id>.onrender.com"
             log_env $env "Booking Service will be available at: https://booking-service${suffix}-<id>.onrender.com"
+            log_env $env "Payment Service will be available at: https://payment-service${suffix}-<id>.onrender.com"
+            log_env $env "Notification Service will be available at: https://notification-service${suffix}-<id>.onrender.com"
             log_env $env "Database: salon-db${suffix} (salon_${env} database)"
             ;;
     esac
@@ -297,6 +269,16 @@ show_environment_status() {
     echo "    • DEV:   https://booking-service-dev-<id>.onrender.com"
     echo "    • STAGE: https://booking-service-stage-<id>.onrender.com"
     echo "    • PROD:  https://booking-service-prod-<id>.onrender.com"
+    echo ""
+    echo "  Payment Service:"
+    echo "    • DEV:   https://payment-service-dev-<id>.onrender.com"
+    echo "    • STAGE: https://payment-service-stage-<id>.onrender.com"
+    echo "    • PROD:  https://payment-service-prod-<id>.onrender.com"
+    echo ""
+    echo "  Notification Service:"
+    echo "    • DEV:   https://notification-service-dev-<id>.onrender.com"
+    echo "    • STAGE: https://notification-service-stage-<id>.onrender.com"
+    echo "    • PROD:  https://notification-service-prod-<id>.onrender.com"
     echo ""
     
     echo "📊 Database Names:"
@@ -377,7 +359,7 @@ main() {
     
     # Deploy
     case $service in
-        "user-service"|"salon-service"|"booking-service"|"all")
+        "user-service"|"salon-service"|"booking-service"|"payment-service"|"notification-service"|"all")
             deploy_environment $service $env $auto_deploy_flag
             ;;
     esac
@@ -393,7 +375,7 @@ main() {
     echo "   • STAGE/PROD: git push origin main"
     echo "2. Connect your GitHub repo to Render"
     echo "3. Create services using $(get_render_config $env) blueprint"
-    echo "4. Set environment variables from config/environments/${env}/secrets.env"
+    echo "4. Set environment variables from config/environments/${env}/<service>.env.sample files"
     echo "5. Trigger deployment (auto for dev, manual for stage/prod)"
     echo ""
     echo "📚 Documentation: https://render.com/docs/deploy-from-github"
@@ -404,10 +386,12 @@ if [ $# -eq 0 ]; then
     echo "Usage: $0 [service] [environment] [options]"
     echo ""
     echo "Services:"
-    echo "  user-service     Deploy only user service"
-    echo "  salon-service    Deploy only salon service"
-    echo "  booking-service  Deploy only booking service"
-    echo "  all             Deploy all services (default)"
+    echo "  user-service          Deploy only user service"
+    echo "  salon-service         Deploy only salon service"
+    echo "  booking-service       Deploy only booking service"
+    echo "  payment-service       Deploy only payment service"
+    echo "  notification-service  Deploy only notification service"
+    echo "  all                   Deploy all services (default)"
     echo "  status          Show environment status"
     echo ""
     echo "Environments:"
@@ -421,11 +405,13 @@ if [ $# -eq 0 ]; then
     echo "  --generate-secrets Generate secrets template only"
     echo ""
     echo "Examples:"
-    echo "  $0 all dev                    # Deploy all to dev"
-    echo "  $0 user-service stage         # Deploy user-service to stage"
-    echo "  $0 booking-service dev        # Deploy booking-service to dev"
-    echo "  $0 all prod --validate-only   # Validate prod deployment"
-    echo "  $0 status                     # Show environment status"
+    echo "  $0 all dev                         # Deploy all to dev"
+    echo "  $0 user-service stage              # Deploy user-service to stage"
+    echo "  $0 booking-service dev             # Deploy booking-service to dev"
+    echo "  $0 payment-service stage           # Deploy payment-service to stage"
+    echo "  $0 notification-service dev        # Deploy notification-service to dev"
+    echo "  $0 all prod --validate-only        # Validate prod deployment"
+    echo "  $0 status                          # Show environment status"
     exit 1
 fi
 

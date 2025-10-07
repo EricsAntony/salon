@@ -1,0 +1,54 @@
+env: dev
+server:
+  port: "8084"
+db:
+  url: "postgres://user:password@localhost:5432/salon?sslmode=disable"
+log:
+  level: debug
+  servicename: notification-service-dev
+notifications:
+  providers:
+    email:
+      smtp:
+        host: "mailhog"  # MailHog for development
+        port: 1025
+        username: ""
+        password: ""
+        from: "noreply@salon-dev.com"
+        tls: false
+    sms:
+      twilio:
+        accountsid: ""  # Set via environment variables
+        authtoken: ""  # Set via environment variables
+        from: ""  # Set via environment variables
+    push:
+      fcm:
+        serverkey: ""  # Set via environment variables
+        projectid: ""  # Set via environment variables
+  templates:
+    path: "./templates"
+    cache: false  # Disable caching for development
+  retry:
+    maxattempts: 3
+    backoff: "exponential"
+    initialdelay: 1s
+    maxdelay: 30s
+redis:
+  url: "redis://localhost:6379/1"
+  timeout: 5s
+  maxretries: 3
+queue:
+  redis:
+    url: "redis://localhost:6379/2"
+    maxjobs: 1000
+  rabbitmq:
+    url: "amqp://guest:guest@localhost:5672/"
+    exchange: "notifications"
+    queue: "notification_queue"
+ratelimit:
+  requestsperminute: 200
+  burstsize: 50
+security:
+  cors:
+    enabled: true
+    origins: ["http://localhost:3000", "http://localhost:8080"]

@@ -1,0 +1,36 @@
+env: stage
+server:
+  port: "8083"
+db:
+  url: "postgres://user:password@stage-db.example.com:5432/salon_stage?sslmode=require"
+log:
+  level: info
+  servicename: payment-service-stage
+payment:
+  gateways:
+    stripe:
+      secretkey: ""  # Set via environment variables
+      webhooksecret: ""  # Set via environment variables
+      publickey: ""  # Set via environment variables
+    razorpay:
+      keyid: ""  # Set via environment variables
+      keysecret: ""  # Set via environment variables
+      webhooksecret: ""  # Set via environment variables
+  webhook:
+    timeout: 30s
+    retries: 3
+  idempotency:
+    ttl: 24h
+redis:
+  url: "redis://stage-redis.example.com:6379/0"
+  timeout: 5s
+  maxretries: 3
+ratelimit:
+  requestsperminute: 100
+  burstsize: 10
+security:
+  cors:
+    enabled: true
+    origins: ["https://salon-stage.example.com"]
+  webhook:
+    verifysignature: true
